@@ -1458,15 +1458,17 @@ void update_local_mouse_light(void)
         light_reset_interpolation(player->cursor_light_idx);
 }
 
-void update_mouse_light(struct PlayerInfo *player)
+void update_mouse_light(struct PlayerInfo *player, NetUserId user)
 {
     SYNCDBG(6,"Starting");
     const struct Packet *pckt = nullptr;
 
-    if (is_my_player(player))
-        pckt = get_history_packet(player->packet_num, get_gameturn());
+    // For our own light prefer the un-lagged current-turn packet, so it tracks the cursor
+    // rather than trailing it by the input lag.
+    if (is_my_player(player) && (user == get_local_user()))
+        pckt = get_history_packet(user, get_gameturn());
     if (pckt == nullptr)
-        pckt = get_packet_direct(player->packet_num);
+        pckt = get_packet_direct(user);
 
     const TbBool valid = (pckt->control_flags & PCtr_MapCoordsValid) != 0;
     struct Coord3d pos;

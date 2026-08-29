@@ -213,12 +213,12 @@ short checksums_different(void)
         if ((player->allocflags & PlaF_CompCtrl) != 0) {
             continue;
         }
-        if (!network_player_active(player->packet_num)) {
+        if (!network_player_active(player->primary_user_id)) {
             continue;
         }
-        struct Packet* packet = get_packet_direct(player->packet_num);
+        struct Packet* packet = get_packet_direct(player->primary_user_id);
         if (is_packet_empty(packet)) {
-            ERRORLOG("Missing checksum packet for player %d packet %d; host turn: %d", i, player->packet_num, host_packet->turn);
+            ERRORLOG("Missing checksum packet for player %d packet %d; host turn: %d", i, player->primary_user_id, host_packet->turn);
             desync_turn = host_packet->turn;
             mismatch = true;
             continue;
@@ -362,7 +362,7 @@ void update_turn_checksums(void) {
     things_sum += checksums->effect_gens;
     things_sum += checksums->doors;
 
-    struct Packet* packet = get_packet(my_player_number);
+    struct Packet* packet = get_local_packet();
     packet->checksum = 0;
     packet->checksum += things_sum;
     packet->checksum += checksums->rooms;

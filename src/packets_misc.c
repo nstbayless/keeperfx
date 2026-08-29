@@ -29,6 +29,8 @@
 #include "game_saves.h"
 #include "gui_topmsg.h"
 #include "config_settings.h"
+#include "net_main.h"
+#include "net_game.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -51,10 +53,38 @@ extern TbBool keeper_screen_redraw(void);
 }
 #endif
 
+/** Index of the packet slot this machine writes its own input into.
+ *
+ * game.packets[] is indexed by network USER, not by player. For now each player has exactly
+ * one user, so this equals get_my_player()->primary_user_id - but going through the player
+ * is the wrong direction and breaks as soon as a player can have more than one user. */
+NetUserId get_local_user(void)
+{
+    if (network_is_active() && (netstate.my_id >= 0) && (netstate.my_id < MAX_NET_USERS)) {
+        return netstate.my_id;
+    }
+    struct PlayerInfo *player = get_my_player();
+    return player_invalid(player) ? 0 : (NetUserId)player->primary_user_id;
+}
+
+struct Packet *get_local_packet(void)
+{
+    return get_packet_direct(get_local_user());
+}
+
+/** Packet to write on behalf of a player: our own when it is us, else the player's own. */
+static struct Packet *get_players_write_packet(struct PlayerInfo *player)
+{
+    if (is_my_player(player)) {
+        return get_local_packet();
+    }
+    return get_packet_direct(player->primary_user_id);
+}
+
 void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype,
         unsigned long par1, unsigned long par2, unsigned short par3, unsigned short par4)
 {
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_players_write_packet(player);
     pckt->actn_par1 = par1;
     pckt->actn_par2 = par2;
     pckt->actn_par3 = par3;
@@ -64,7 +94,7 @@ void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype,
 
 unsigned char get_players_packet_action(struct PlayerInfo *player)
 {
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_players_write_packet(player);
     return pckt->action;
 }
 
@@ -75,7 +105,7 @@ void set_packet_control(struct Packet *pckt, unsigned long flag)
 
 void set_players_packet_control(struct PlayerInfo *player, unsigned long flag)
 {
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_players_write_packet(player);
     pckt->control_flags |= flag;
 }
 
@@ -86,7 +116,7 @@ void unset_packet_control(struct Packet *pckt, unsigned long flag)
 
 void unset_players_packet_control(struct PlayerInfo *player, unsigned long flag)
 {
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_players_write_packet(player);
     pckt->control_flags &= ~flag;
 }
 
@@ -109,9 +139,9 @@ struct Packet *get_packet(long plyr_idx)
     struct PlayerInfo* player = get_player(plyr_idx);
     if (player_invalid(player))
         return INVALID_PACKET;
-    if (player->packet_num >= PACKETS_COUNT)
+    if (player->primary_user_id >= PACKETS_COUNT)
         return INVALID_PACKET;
-    return &game.packets[player->packet_num];
+    return &game.packets[player->primary_user_id];
 }
 /**
  * Gives a pointer to packet of given index.
@@ -389,7 +419,7 @@ void set_packet_pause_toggle()
     struct PlayerInfo* player = get_my_player();
     if (player_invalid(player))
         return;
-    if (player->packet_num >= PACKETS_COUNT)
+    if (player->primary_user_id >= PACKETS_COUNT)
         return;
     if (game.game_kind != GKind_LocalGame) {
         unsigned long current_time = LbTimerClock();

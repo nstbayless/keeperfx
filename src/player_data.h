@@ -156,8 +156,12 @@ struct PlayerInfo {
     unsigned char input_crtr_query;
     unsigned char display_flags;
     unsigned char *lens_palette;
-    /** Index of packet slot associated with this player. */
-    unsigned char packet_num;
+    /** Network user that drives this player.
+     *
+     *  game.packets[] and the packet history are indexed by network USER, not by player, so
+     *  this is a user id despite living on PlayerInfo. Code that wants "the packet being
+     *  applied" should take an explicit user id rather than reading this. */
+    unsigned char primary_user_id;
     int32_t hand_animationId;
     unsigned int hand_busy_until_turn;
     char player_name[20];

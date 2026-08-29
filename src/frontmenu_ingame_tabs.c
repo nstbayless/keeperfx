@@ -563,7 +563,7 @@ void gui_remove_area_for_rooms(struct GuiButton *gbtn)
     game.chosen_room_kind = 0;
     game.chosen_room_spridx = 0;
     game.chosen_room_tooltip = 0;
-    struct Packet* pckt = get_packet(my_player_number);
+    struct Packet* pckt = get_local_packet();
     set_packet_action(pckt, PckA_SetPlyrState, PSt_Sell, 0, 0, 0);
 }
 
@@ -2288,7 +2288,7 @@ void gui_toggle_ally(struct GuiButton *gbtn)
     if(plyr_idx == -1)
         return;
     if ((gbtn->flags & LbBtnF_Enabled) != 0) {
-        struct Packet* pckt = get_packet(my_player_number);
+        struct Packet* pckt = get_local_packet();
         set_packet_action(pckt, PckA_PlyrToggleAlly, plyr_idx, 0, 0, 0);
     }
 }

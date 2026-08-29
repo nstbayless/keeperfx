@@ -220,7 +220,7 @@ void fronttorture_input(void)
     PlayerNumber plyr_idx;
     clear_packets();
     struct PlayerInfo* player = get_my_player();
-    struct Packet* pckt = get_packet(my_player_number);
+    struct Packet* pckt = get_local_packet();
     // Get inputs and create packet
     if (player->victory_state == VicS_WonLevel)
     {

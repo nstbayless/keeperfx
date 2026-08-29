@@ -22,6 +22,7 @@
 #include "bflib_basics.h"
 #include "bflib_keybrd.h"
 #include "globals.h"
+#include "net_main.h"
 #include "player_data.h"
 #include <stdint.h>
 
@@ -322,6 +323,10 @@ struct PacketEx
 /******************************************************************************/
 /******************************************************************************/
 struct Packet *get_packet_direct(long pckt_idx);
+/** Packet this machine writes its own input into. */
+struct Packet *get_local_packet(void);
+/** Network user index this machine owns. */
+NetUserId get_local_user(void);
 struct Packet *get_packet(long plyr_idx);
 void set_packet_action(struct Packet *pckt, unsigned char pcktype, long par1, long par2, unsigned short par3, unsigned short par4);
 TbBool is_packet_empty(const struct Packet *pckt);
@@ -334,11 +339,11 @@ void unset_players_packet_control(struct PlayerInfo *player, unsigned long flag)
 void set_players_packet_position(struct Packet *pckt, long x, long y, unsigned char context);
 void set_packet_pause_toggle(void);
 struct Thing *get_thing_under_hand(struct PlayerInfo *player, MapCoord x, MapCoord y);
-TbBool process_dungeon_control_packet_clicks(long idx);
-TbBool process_players_dungeon_control_packet_action(long idx);
-void process_players_creature_control_packet_control(long idx);
-void process_players_creature_passenger_packet_action(long idx);
-void process_players_creature_control_packet_action(long idx);
+TbBool process_dungeon_control_packet_clicks(long idx, NetUserId user);
+TbBool process_players_dungeon_control_packet_action(long idx, NetUserId user);
+void process_players_creature_control_packet_control(long idx, NetUserId user);
+void process_players_creature_passenger_packet_action(long idx, NetUserId user);
+void process_players_creature_control_packet_action(long idx, NetUserId user);
 void process_map_packet_clicks(long idx);
 void process_pause_packet(long a1, long a2);
 void process_camera_controls(struct Camera* cam, const struct Packet* pckt, struct PlayerInfo* player, TbBool is_local_camera);

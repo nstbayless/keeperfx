@@ -195,12 +195,12 @@ struct Room *keeper_build_room(long stl_x,long stl_y,long plyr_idx,long rkind)
     return room;
 }
 
-TbBool process_dungeon_control_packet_spell_overcharge(long plyr_idx)
+TbBool process_dungeon_control_packet_spell_overcharge(long plyr_idx, NetUserId user)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
     struct Dungeon* dungeon = get_players_dungeon(player);
     SYNCDBG(6,"Starting for player %d state %s",(int)plyr_idx,player_state_code_name(player->work_state));
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet_direct(user);
 
     while (game.conf.rules[plyr_idx].magic.allow_instant_charge_up && (pckt->additional_packet_values & PCAdV_SpeedupPressed))
     {
@@ -541,12 +541,13 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
     }
 }
 
-void update_box_lag_compensation(struct PlayerInfo* player) {
+void update_box_lag_compensation(struct PlayerInfo* player, NetUserId user) {
     box_lag_compensation_x = 0;
     box_lag_compensation_y = 0;
-    if (is_my_player(player)) {
-        struct Packet* auth_pckt = get_packet_direct(player->packet_num);
-        const struct Packet *visual_pckt = get_history_packet(player->packet_num, get_gameturn());
+    // Purely local: how far our own cursor moved since the turn being simulated.
+    if (is_my_player(player) && (user == get_local_user())) {
+        struct Packet* auth_pckt = get_packet_direct(user);
+        const struct Packet *visual_pckt = get_history_packet(user, get_gameturn());
         if (visual_pckt != NULL) {
             box_lag_compensation_x = coord_slab(auth_pckt->pos_x) - coord_slab(visual_pckt->pos_x);
             box_lag_compensation_y = coord_slab(auth_pckt->pos_y) - coord_slab(visual_pckt->pos_y);
@@ -556,10 +557,10 @@ void update_box_lag_compensation(struct PlayerInfo* player) {
     }
 }
 
-void process_players_dungeon_control_packet_control(long plyr_idx)
+void process_players_dungeon_control_packet_control(long plyr_idx, NetUserId user)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet_direct(user);
     SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
     struct Camera* cam = get_player_active_camera(player);
     if (cam == NULL) {
@@ -586,10 +587,10 @@ void process_players_dungeon_control_packet_control(long plyr_idx)
         }
     }
     if (is_my_player(player)) {
-        update_box_lag_compensation(player);
+        update_box_lag_compensation(player, user);
     }
-    process_dungeon_control_packet_clicks(plyr_idx);
-    update_mouse_light(player);
+    process_dungeon_control_packet_clicks(plyr_idx, user);
+    update_mouse_light(player, user);
 }
 
 static void set_all_cameras_position(struct Camera cams[], int32_t pos_x, int32_t pos_y)
@@ -629,11 +630,11 @@ void process_camera_action(struct Camera cams[], const struct Packet *pckt)
     }
 }
 
-TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
+TbBool process_players_global_packet_action(PlayerNumber plyr_idx, NetUserId user)
 {
   //TODO PACKET add commands from beta
   struct PlayerInfo* player = get_player(plyr_idx);
-  struct Packet* pckt = get_packet_direct(player->packet_num);
+  struct Packet* pckt = get_packet_direct(user);
   SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
   struct Dungeon *dungeon;
   struct Thing *thing;
@@ -690,7 +691,7 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
           quit_game = 1;
           return 0;
         }
-        TbBool host_packet = player->packet_num == SERVER_ID;
+        TbBool host_packet = player->primary_user_id == SERVER_ID;
         if (!my_player) {
           if (host_packet && (player->victory_state != VicS_LostLevel)) {
             get_my_player()->additional_flags &= ~PlaAF_UnlockedLordTorture;
@@ -1062,16 +1063,16 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
   }
 }
 
-void process_players_map_packet_control(long plyr_idx)
+void process_players_map_packet_control(long plyr_idx, NetUserId user)
 {
     SYNCDBG(6,"Starting");
     struct PlayerInfo* player = get_player(plyr_idx);
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet_direct(user);
     // Get map coordinates
     process_map_packet_clicks(plyr_idx);
     player->cameras[CamIV_Parchment].mappos.x.val = pckt->pos_x;
     player->cameras[CamIV_Parchment].mappos.y.val = pckt->pos_y;
-    update_mouse_light(player);
+    update_mouse_light(player, user);
     SYNCDBG(8,"Finished");
 }
 
@@ -1091,10 +1092,10 @@ void process_map_packet_clicks(long plyr_idx)
  * Process packet with input commands for given player.
  * @param plyr_idx Player to process packet for.
  */
-void process_players_packet(long plyr_idx)
+void process_players_packet(long plyr_idx, NetUserId user)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet_direct(user);
     if (is_packet_empty(pckt))
     {
         MULTIPLAYER_LOG("process_players_packet: Skipping empty packet for player %ld", plyr_idx);
@@ -1104,7 +1105,7 @@ void process_players_packet(long plyr_idx)
     player->input_crtr_control = ((pckt->additional_packet_values & PCAdV_CrtrContrlPressed) != 0);
     player->input_crtr_query = ((pckt->additional_packet_values & PCAdV_CrtrQueryPressed) != 0);
 
-  if (!process_players_global_packet_action(plyr_idx))
+  if (!process_players_global_packet_action(plyr_idx, user))
   {
       // Different changes to the game are possible for different views.
       // For each there can be a control change (which is view change or mouse event not translated to action),
@@ -1112,19 +1113,19 @@ void process_players_packet(long plyr_idx)
       switch (player->view_type)
       {
           case PVT_DungeonTop:
-            process_players_dungeon_control_packet_control(plyr_idx);
-            process_players_dungeon_control_packet_action(plyr_idx);
+            process_players_dungeon_control_packet_control(plyr_idx, user);
+            process_players_dungeon_control_packet_action(plyr_idx, user);
             break;
           case PVT_CreatureContrl:
-            process_players_creature_control_packet_control(plyr_idx);
-            process_players_creature_control_packet_action(plyr_idx);
+            process_players_creature_control_packet_control(plyr_idx, user);
+            process_players_creature_control_packet_action(plyr_idx, user);
             break;
           case PVT_CreaturePasngr:
             //process_players_creature_passenger_packet_control(plyr_idx); -- there are no control changes in passenger mode
-            process_players_creature_passenger_packet_action(plyr_idx);
+            process_players_creature_passenger_packet_action(plyr_idx, user);
             break;
           case PVT_MapScreen:
-            process_players_map_packet_control(plyr_idx);
+            process_players_map_packet_control(plyr_idx, user);
             //process_players_map_packet_action(plyr_idx); -- there are no actions to perform from map screen
             break;
           default:
@@ -1134,10 +1135,10 @@ void process_players_packet(long plyr_idx)
   SYNCDBG(8,"Finished");
 }
 
-void process_players_creature_passenger_packet_action(long plyr_idx)
+void process_players_creature_passenger_packet_action(long plyr_idx, NetUserId user)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet_direct(user);
     SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
     if (pckt->action == PckA_PasngrCtrlExit)
     {
@@ -1148,10 +1149,10 @@ void process_players_creature_passenger_packet_action(long plyr_idx)
     SYNCDBG(8,"Finished");
 }
 
-TbBool process_players_dungeon_control_packet_action(long plyr_idx)
+TbBool process_players_dungeon_control_packet_action(long plyr_idx, NetUserId user)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet_direct(user);
     SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
     switch (pckt->action)
     {
@@ -1226,14 +1227,14 @@ TbBool can_process_creature_input(struct Thing *thing)
     return true;
 }
 
-void process_players_creature_control_packet_control(long idx)
+void process_players_creature_control_packet_control(long idx, NetUserId user)
 {
     SYNCDBG(6,"Starting");
     struct InstanceInfo *inst_inf;
     long i;
     struct PlayerInfo* player = get_player(idx);
     struct Thing* cctng = thing_get(player->controlled_thing_idx);
-    struct Packet* pckt = get_packet_direct(player->packet_num);
+    struct Packet* pckt = get_packet_direct(user);
     struct CreatureControl* ccctrl = creature_control_get_from_thing(cctng);
     ThingIndex target_idx;
     if (can_process_creature_input(cctng))
@@ -1436,7 +1437,7 @@ void process_players_creature_control_packet_control(long idx)
     }
 }
 
-void process_players_creature_control_packet_action(long plyr_idx)
+void process_players_creature_control_packet_action(long plyr_idx, NetUserId user)
 {
   struct CreatureControl *cctrl;
   struct InstanceInfo *inst_inf;
@@ -1445,7 +1446,7 @@ void process_players_creature_control_packet_action(long plyr_idx)
   struct Packet *pckt;
   long i;
   player = get_player(plyr_idx);
-  pckt = get_packet_direct(player->packet_num);
+  pckt = get_packet_direct(user);
   SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
   switch (pckt->action)
   {
@@ -1577,7 +1578,7 @@ static void load_old_packets(void)
 }
 
 void set_local_packet_turn(void) {
-    struct Packet* pckt = get_packet(my_player_number);
+    struct Packet* pckt = get_local_packet();
     pckt->turn = get_gameturn();
     MULTIPLAYER_LOG("set_local_packet_turn: turn=%lu checksum=%08lx", (unsigned long)get_gameturn(), (unsigned long)pckt->checksum);
 }
@@ -1588,22 +1589,23 @@ void set_local_packet_turn(void) {
  */
 void exchange_packets(void)
 {
-    struct PlayerInfo* player = get_my_player();
     SYNCDBG(5, "Starting");
 
     MULTIPLAYER_LOG("process_packets: === BEGIN turn=%lu ===", (unsigned long)get_gameturn());
-    input_lag_update(get_packet_direct(player->packet_num));
+    // Our own input lives in our own user's packet slot.
+    const NetUserId local_user = get_local_user();
+    input_lag_update(get_local_packet());
     set_local_packet_turn();
     update_turn_checksums();
     update_local_dig_tag_prediction();
-    store_packet_history(player->packet_num, get_packet_direct(player->packet_num));
+    store_packet_history(local_user, get_local_packet());
     if (game.game_kind != GKind_LocalGame)
     {
         if (!game.packet_load_enable || game.packet_load_initialized)
         {
-            struct Packet* my_packet = get_packet_direct(player->packet_num);
+            struct Packet* my_packet = get_local_packet();
             const char* player_name;
-            if (player->packet_num == 0) {player_name = "Host";} else {player_name = "Client";}
+            if (local_user == SERVER_ID) {player_name = "Host";} else {player_name = "Client";}
             MULTIPLAYER_LOG("process_packets: SENDING packet[%s] turn=%lu checksum=%08lx", player_name, (unsigned long)my_packet->turn, (unsigned long)my_packet->checksum);
             if (LbNetwork_ExchangeGameplay(my_packet, game.packets, sizeof(struct Packet)) != Lb_OK) {
                 ERRORLOG("LbNetwork_ExchangeGameplay failed");
@@ -1652,7 +1654,7 @@ void process_packets(void)
     {
         struct PlayerInfo* packet_player = get_player(i);
         if (player_exists(packet_player) && ((packet_player->allocflags & PlaF_CompCtrl) == 0)) {
-            process_players_packet(i);
+            process_players_packet(i, packet_player->primary_user_id);
         }
     }
     update_local_dig_prediction_cursor_preview();

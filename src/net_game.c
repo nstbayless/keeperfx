@@ -124,7 +124,7 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
         }
         struct PlayerInfo *player = get_player(k);
         player->id_number = k;
-        player->packet_num = i;
+        player->primary_user_id = i;
         player->allocflags |= PlaF_Allocated;
         switch (sync->video_rotate_mode) {
             case 0: player->view_mode_restore = PVM_IsoWibbleView; break;
@@ -291,7 +291,7 @@ static void setup_network_player_numbers(void)
         struct PlayerInfo* player = get_player(i);
         if (net_player_info[i].network_user_active)
         {
-            player->packet_num = i;
+            player->primary_user_id = i;
             if ((!is_set) && (my_player_number == i))
             {
                 is_set = true;
@@ -408,7 +408,7 @@ static TbBool network_has_remote_enemies_remaining(void)
     for (int i = 0; i < PLAYERS_COUNT; i++) {
         struct PlayerInfo *player = get_player(i);
         TbBool is_active_enemy = player_exists(player) && !is_my_player(player) && player->is_active == 1 && !player_cannot_win(player->id_number) && players_are_enemies(myplyr->id_number, player->id_number);
-        TbBool is_connected_network_player = (player->allocflags & PlaF_CompCtrl) == 0 && network_player_active(player->packet_num);
+        TbBool is_connected_network_player = (player->allocflags & PlaF_CompCtrl) == 0 && network_player_active(player->primary_user_id);
         TbBool is_initial_computer_player = (player->allocflags & PlaF_CompCtrl) != 0 && i >= game.active_players_count;
         if (is_active_enemy && (is_connected_network_player || is_initial_computer_player)) {
             return true;
@@ -494,7 +494,7 @@ void process_player_leave_game_packet(struct PlayerInfo *player)
 {
     if (player != get_my_player()) {
         if (network_is_active()) {
-            OnDroppedUser(player->packet_num, NETDROP_MANUAL);
+            OnDroppedUser(player->primary_user_id, NETDROP_MANUAL);
             process_disconnected_network_players();
             return;
         }
@@ -524,7 +524,7 @@ void process_disconnected_network_players(void)
     }
     for (int player_index = 0; player_index < MAX_NET_USERS; player_index++) {
         struct PlayerInfo *player = get_player(player_index);
-        if (!player_exists(player) || is_my_player(player) || (!host_disconnected && network_player_active(player->packet_num))) {
+        if (!player_exists(player) || is_my_player(player) || (!host_disconnected && network_player_active(player->primary_user_id))) {
             continue;
         }
         disconnected = true;

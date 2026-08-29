@@ -58,7 +58,9 @@ static const struct Packet* get_packet_for_local_camera_update(void)
     if (player_invalid(player)) {
         return NULL;
     }
-    return get_history_packet(player->packet_num, get_gameturn());
+    // Our own packet: the same thing as the player's only user today, but going through
+    // the player is the wrong direction.
+    return get_history_packet(get_local_user(), get_gameturn());
 }
 
 void send_camera_catchup_packets(void)

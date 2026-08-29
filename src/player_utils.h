@@ -56,6 +56,7 @@ TbBool player_sell_door_at_subtile(PlayerNumber plyr_idx, MapSubtlCoord stl_x, M
 
 void init_players(void);
 void init_player(struct PlayerInfo *player, short no_explore);
+void init_player_local_view(struct PlayerInfo *player);
 void post_init_players(void);
 void post_init_player(struct PlayerInfo* player);
 void init_players_local_game(void);

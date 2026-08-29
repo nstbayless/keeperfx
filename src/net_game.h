@@ -63,6 +63,12 @@ TbBool network_is_host(void);
 /* Network user -> player slot mapping. */
 void reset_net_user_slots(void);
 PlayerNumber net_user_player_slot(NetUserId id);
+/** True when several users drive this slot. */
+TbBool net_slot_is_shared(PlayerNumber slot);
+/** Lowest user on this slot, or -1. */
+NetUserId net_slot_primary_user(PlayerNumber slot);
+/** Lowest still-connected user on this slot, or -1 once all have left. */
+NetUserId net_slot_active_user(PlayerNumber slot);
 /** The player slot the host occupies; no longer necessarily 0. */
 PlayerNumber net_host_player_slot(void);
 /******************************************************************************/

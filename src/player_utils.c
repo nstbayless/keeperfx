@@ -774,6 +774,26 @@ void init_player_as_single_keeper(struct PlayerInfo *player)
     }
 }
 
+/** Machine-local presentation setup: HUD, menus, tag mode.
+ *
+ * Split out of init_player() so a user joining a player slot that another user already
+ * initialised can still get its own HUD, without re-running the parts that build shared
+ * state - dungeon, start position, alliances - which must happen once per slot. */
+void init_player_local_view(struct PlayerInfo *player)
+{
+    if (default_tag_mode != 3)
+    {
+        settings.highlight_mode = default_tag_mode - 1;
+    }
+    player->roomspace_highlight_mode = settings.highlight_mode;
+    player->roomspace_mode = settings.highlight_mode;
+    set_flag(game.operation_flags, GOF_ShowPanel);
+    set_gui_visible(true);
+    init_gui();
+    turn_on_menu(GMnu_MAIN);
+    turn_on_menu(GMnu_ROOM);
+}
+
 void init_player(struct PlayerInfo *player, short no_explore)
 {
     SYNCDBG(5,"Starting");
@@ -790,17 +810,7 @@ void init_player(struct PlayerInfo *player, short no_explore)
     player->isometric_tilt = settings.isometric_tilt;
     if (is_my_player(player))
     {
-        if (default_tag_mode != 3)
-        {
-            settings.highlight_mode = default_tag_mode - 1;
-        }
-        player->roomspace_highlight_mode = settings.highlight_mode;
-        player->roomspace_mode = settings.highlight_mode;
-        set_flag(game.operation_flags, GOF_ShowPanel);
-        set_gui_visible(true);
-        init_gui();
-        turn_on_menu(GMnu_MAIN);
-        turn_on_menu(GMnu_ROOM);
+        init_player_local_view(player);
     }
     player->roomspace_width = 1;
     player->roomspace_height = 1;

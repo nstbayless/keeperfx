@@ -202,23 +202,29 @@ short checksums_different(void)
     TbBigChecksum host_checksum = host_packet->checksum;
     TbBool mismatch = false;
 
-    for (int i = 0; i < PLAYERS_COUNT; i++) {
-        struct PlayerInfo* player = get_player(i);
-        if (i == host_player_id) {
+    // Iterate users, not players: every user submits its own checksum, and a player driven
+    // by several users would otherwise have only its primary verified.
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        if (user == host_player_id) {
             continue;
         }
+        if (!network_player_active(user)) {
+            continue;
+        }
+        PlayerNumber i = net_user_player_slot(user);
+        if (i < 0) {
+            continue;
+        }
+        struct PlayerInfo* player = get_player(i);
         if (!player_exists(player)) {
             continue;
         }
         if ((player->allocflags & PlaF_CompCtrl) != 0) {
             continue;
         }
-        if (!network_player_active(player->primary_user_id)) {
-            continue;
-        }
-        struct Packet* packet = get_packet_direct(player->primary_user_id);
+        struct Packet* packet = get_packet_direct(user);
         if (is_packet_empty(packet)) {
-            ERRORLOG("Missing checksum packet for player %d packet %d; host turn: %d", i, player->primary_user_id, host_packet->turn);
+            ERRORLOG("Missing checksum packet for player %d packet %d; host turn: %d", i, user, host_packet->turn);
             desync_turn = host_packet->turn;
             mismatch = true;
             continue;

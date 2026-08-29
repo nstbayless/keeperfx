@@ -1649,12 +1649,25 @@ void process_packets(void)
     #if DEBUG_NETWORK_PACKETS
     write_debug_packets();
     #endif
-    // Process the packets
-    for (int i=0; i<PACKETS_COUNT; i++)
+    // Apply one packet per network user. Packets are user-indexed, so a player driven by
+    // several users is advanced once per user. Players in slot order and their users in
+    // ascending id order, so every machine applies the same packets in the same sequence.
+    for (int slot = 0; slot < PACKETS_COUNT; slot++)
     {
-        struct PlayerInfo* packet_player = get_player(i);
-        if (player_exists(packet_player) && ((packet_player->allocflags & PlaF_CompCtrl) == 0)) {
-            process_players_packet(i, packet_player->primary_user_id);
+        struct PlayerInfo* packet_player = get_player(slot);
+        if (!player_exists(packet_player) || ((packet_player->allocflags & PlaF_CompCtrl) != 0)) {
+            continue;
+        }
+        if (!network_is_active()) {
+            process_players_packet(slot, packet_player->primary_user_id);
+            continue;
+        }
+        for (NetUserId user = 0; user < MAX_NET_USERS; user++)
+        {
+            if ((net_user_player_slot(user) != slot) || !network_player_active(user)) {
+                continue;
+            }
+            process_players_packet(slot, user);
         }
     }
     update_local_dig_prediction_cursor_preview();

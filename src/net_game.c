@@ -32,6 +32,7 @@
 
 #include "player_data.h"
 #include "player_instances.h"
+#include "local_camera.h"
 #include "front_landview.h"
 #include "player_utils.h"
 #include "packets.h"
@@ -133,6 +134,41 @@ PlayerNumber net_user_player_slot(NetUserId id)
     return s_net_user_slot[id];
 }
 
+/** True when two or more network users drive this player slot ("archon"). */
+TbBool net_slot_is_shared(PlayerNumber slot)
+{
+    int count = 0;
+    for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
+        if (s_net_user_slot[id] == slot) {
+            count++;
+        }
+    }
+    return (count > 1);
+}
+
+/** Lowest user driving this slot, or -1. The one that speaks for the slot where it must
+ *  still act as a single player; the host whenever the host is on it, since host == 0. */
+NetUserId net_slot_primary_user(PlayerNumber slot)
+{
+    for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
+        if (s_net_user_slot[id] == slot) {
+            return id;
+        }
+    }
+    return -1;
+}
+
+/** Lowest still-connected user driving this slot, or -1 once all of them have left. */
+NetUserId net_slot_active_user(PlayerNumber slot)
+{
+    for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
+        if ((s_net_user_slot[id] == slot) && network_player_active(id)) {
+            return id;
+        }
+    }
+    return -1;
+}
+
 /** The player slot the host occupies. The host is always SERVER_ID, but that no longer
  *  implies player slot 0 once slots can be requested. */
 PlayerNumber net_host_player_slot(void)
@@ -169,7 +205,7 @@ static void resolve_net_user_slots(const struct StartupSyncPacket startup_sync_p
         if (wanted == NET_SLOT_AUTO) {
             continue;
         }
-        if (!net_slot_is_selectable(wanted) || slot_claimed[wanted]) {
+        if (!net_slot_is_selectable(wanted)) {
             WARNLOG("User %d cannot have player slot %ld, assigning automatically", (int)id, wanted);
             continue;
         }
@@ -195,7 +231,8 @@ static void resolve_net_user_slots(const struct StartupSyncPacket startup_sync_p
 
     for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
         if (net_player_info[id].network_user_active) {
-            NETLOG("Network user %d -> player slot %d", (int)id, (int)s_net_user_slot[id]);
+            NETLOG("Network user %d -> player slot %d%s", (int)id, (int)s_net_user_slot[id],
+                net_slot_is_shared(s_net_user_slot[id]) ? " (shared)" : "");
         }
     }
 }
@@ -223,6 +260,16 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
             continue;
         }
         struct PlayerInfo *player = get_player(k);
+        if (flag_is_set(player->allocflags, PlaF_Allocated)) {
+            // Another user already built this slot; we share it. The slot's shared state
+            // belongs to the first user, so only do the machine-local parts here.
+            if (i == netstate.my_id) {
+                init_player_local_view(player);
+                init_local_cameras(player);
+            }
+            SYNCLOG("Network user %d shares player slot %d", i, k);
+            continue;
+        }
         player->id_number = k;
         player->primary_user_id = i;
         player->allocflags |= PlaF_Allocated;
@@ -410,11 +457,20 @@ void setup_count_players(void)
     game.active_players_count = 1;
   } else
   {
+    TbBool slot_counted[PLAYERS_COUNT] = {false};
     game.active_players_count = 0;
     for (int i = 0; i < MAX_NET_USERS; i++)
     {
-      if (net_player_info[i].network_user_active)
+      if (!net_player_info[i].network_user_active)
+        continue;
+      // Several users may share one slot; the slot counts once.
+      PlayerNumber slot = net_user_player_slot(i);
+      if (slot < 0) {
         game.active_players_count++;
+      } else if (!slot_counted[slot]) {
+        slot_counted[slot] = true;
+        game.active_players_count++;
+      }
     }
   }
 }
@@ -621,7 +677,18 @@ void process_disconnected_network_players(void)
     }
     for (int player_index = 0; player_index < MAX_NET_USERS; player_index++) {
         struct PlayerInfo *player = get_player(player_index);
-        if (!player_exists(player) || is_my_player(player) || (!host_disconnected && network_player_active(player->primary_user_id))) {
+        if (!player_exists(player) || is_my_player(player)) {
+            continue;
+        }
+        // Only drop a slot once every user driving it has gone. If some remain but the one
+        // named as primary is not among them, hand the slot to a survivor and play on.
+        const NetUserId surviving_user = net_slot_active_user(player->id_number);
+        if (!host_disconnected && (surviving_user >= 0)) {
+            if (player->primary_user_id != (unsigned char)surviving_user) {
+                JUSTLOG("p:%d primary user %d left; slot continues under user %d",
+                    (int)player->id_number, (int)player->primary_user_id, (int)surviving_user);
+                player->primary_user_id = (unsigned char)surviving_user;
+            }
             continue;
         }
         disconnected = true;

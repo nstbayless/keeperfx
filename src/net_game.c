@@ -198,6 +198,7 @@ static void resolve_net_user_slots(const struct StartupSyncPacket startup_sync_p
     TbBool slot_claimed[PLAYERS_COUNT] = {false};
     reset_net_user_slots();
     reset_user_cameras();
+    reset_player_instance_users();
 
     for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
         if (!net_player_info[id].network_user_active) {

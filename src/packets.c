@@ -1096,6 +1096,8 @@ void process_map_packet_clicks(long plyr_idx)
  */
 void process_players_packet(long plyr_idx, NetUserId user)
 {
+    // Instances started while applying this packet remember who started them.
+    set_applying_user(user);
     struct PlayerInfo* player = get_player(plyr_idx);
     struct Packet* pckt = get_packet_direct(user);
     if (is_packet_empty(pckt))
@@ -1672,6 +1674,7 @@ void process_packets(void)
             process_players_packet(slot, user);
         }
     }
+    set_applying_user(-1);
     update_local_dig_prediction_cursor_preview();
     // Clear all packets
     clear_packets();

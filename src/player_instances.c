@@ -261,7 +261,7 @@ long pinstfe_hand_whip(struct PlayerInfo *player, int32_t *n)
       trapst = get_trap_model_stats(thing->model);
       if ((trapst->slappable > 0) && trap_is_active(thing))
       {
-          activate_trap_by_slap(player, thing);
+          activate_trap_by_slap(player, thing, get_player_instance_user(player->id_number));
 
           struct Dungeon* dungeon = get_dungeon(thing->owner);
           if (!dungeon_invalid(dungeon))
@@ -866,8 +866,45 @@ long pinstfe_zoom_to_position(struct PlayerInfo *player, int32_t *n)
     return 0;
 }
 
+/* Which user's packet is being applied, and which user started each player's instance.
+ *
+ * A player may be driven by several users, and some instance effects depend on who acted -
+ * a slapped boulder rolls the way the slapper faces. The instance runs from
+ * process_player_instances(), after packet application has finished, so the acting user has
+ * to be captured when the instance starts rather than looked up later.
+ *
+ * Derived from the replicated packet stream in the same order on every machine. Kept out of
+ * struct Game, which is serialised verbatim to savegames behind a size check. */
+static NetUserId s_applying_user = -1;
+static NetUserId s_instance_user[PLAYERS_COUNT];
+
+void reset_player_instance_users(void)
+{
+    for (int i = 0; i < PLAYERS_COUNT; i++) {
+        s_instance_user[i] = -1;
+    }
+    s_applying_user = -1;
+}
+
+void set_applying_user(NetUserId user)
+{
+    s_applying_user = user;
+}
+
+NetUserId get_player_instance_user(PlayerNumber plyr_idx)
+{
+    if ((plyr_idx < 0) || (plyr_idx >= PLAYERS_COUNT) || (s_instance_user[plyr_idx] < 0)) {
+        struct PlayerInfo *player = get_player(plyr_idx);
+        return player_invalid(player) ? 0 : (NetUserId)player->primary_user_id;
+    }
+    return s_instance_user[plyr_idx];
+}
+
 void set_player_instance(struct PlayerInfo *player, long ninum, TbBool force)
 {
+    if (player->id_number < PLAYERS_COUNT) {
+        s_instance_user[player->id_number] = s_applying_user;
+    }
     long inum = player->instance_num;
     if (inum >= PLAYER_INSTANCES_COUNT)
         inum = 0;

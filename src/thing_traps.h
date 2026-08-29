@@ -21,6 +21,7 @@
 
 #include "bflib_basics.h"
 #include "globals.h"
+#include "net_main.h"
 #include "engine_camera.h"
 
 #ifdef __cplusplus
@@ -94,7 +95,7 @@ TbBool rearm_trap(struct Thing *traptng);
 TngUpdateRet update_trap(struct Thing *thing);
 void init_traps(void);
 void activate_trap(struct Thing *traptng, struct Thing *creatng);
-void activate_trap_by_slap(struct PlayerInfo* player, struct Thing* traptng);
+void activate_trap_by_slap(struct PlayerInfo* player, struct Thing* traptng, NetUserId user);
 void process_trap_charge(struct Thing* traptng);
 void script_place_trap(PlayerNumber plyridx, ThingModel trapkind, MapSubtlCoord stl_x, MapSubtlCoord stl_y, TbBool free);
 void set_trap_shots(struct Thing *traptng, int shots);

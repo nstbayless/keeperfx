@@ -47,6 +47,8 @@
 #include "cursor_tag.h"
 #include "player_instances.h"
 #include "room_workshop.h"
+#include "engine_camera.h"
+#include "net_game.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -648,7 +650,7 @@ void activate_trap(struct Thing *traptng, struct Thing *creatng)
     }
 }
 
-void activate_trap_by_slap(struct PlayerInfo *player, struct Thing* traptng)
+void activate_trap_by_slap(struct PlayerInfo *player, struct Thing* traptng, NetUserId user)
 {
     struct Thing* trgtng = INVALID_THING;
     struct TrapConfigStats* trapst = get_trap_model_stats(traptng->model);
@@ -690,7 +692,10 @@ void activate_trap_by_slap(struct PlayerInfo *player, struct Thing* traptng)
             case TrpAcT_HeadforTarget90:
             case TrpAcT_CreatureShot:
             {
-                struct Camera* camera = get_player_active_camera(player);
+                // A slapped boulder rolls the way the slapper faces, so this must be the
+                // camera of the user that slapped - not the player's, which may be shared.
+                struct Camera* camera = get_active_camera_of_set(
+                    get_user_cameras_or_players(user, player), player);
                 if (camera != NULL)
                     external_activate_trap_shot_at_angle(traptng, camera->rotation_angle_x, trgtng);
                 break;

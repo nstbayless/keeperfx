@@ -103,7 +103,7 @@ static TbBool try_starting_level_from_chat(const char *message, int32_t player_i
     }
     LevelNumber level_num = -1;
     if (level_str[0] != '_') {
-        if (!isdigit(level_str[0]) || (player_id != get_host_player_id())) {
+        if (!isdigit(level_str[0]) || (player_id != SERVER_ID)) {
             return false;
         }
         level_num = atoi(level_str);
@@ -513,7 +513,7 @@ static void process_frontend_packets(void)
 
 TbBool frontnet_matchmaking_update(void)
 {
-    if (my_player_number == get_host_player_id() && frontnet_service_selected(FrontendNetSvc_Online) && enet_matchmaking_host_update() < 0) {
+    if (network_is_host() && frontnet_service_selected(FrontendNetSvc_Online) && enet_matchmaking_host_update() < 0) {
         frontnet_return_to_session_menu(NULL);
         create_frontend_error_box(0, get_string(GUIStr_NetLobbyConnectionLost));
         return false;
@@ -549,10 +549,10 @@ void handle_autostart_multiplayer_messaging(void)
         return;
     }
 
-    if (player_joined && my_player_number == get_host_player_id()) {
+    if (player_joined && network_is_host()) {
         frontnet_send_campaign_change_message(campaign.fname);
     }
-    if (my_player_number != get_host_player_id() || get_selected_level_number() > SINGLEPLAYER_NOTSTARTED) {
+    if (!network_is_host() || get_selected_level_number() > SINGLEPLAYER_NOTSTARTED) {
         return;
     }
     if (autostart_multiplayer_campaign[0] == '\0' && autostart_multiplayer_level <= 0) {

@@ -207,7 +207,7 @@ TbBool can_send_to_peer(NetUserId peer_id)
 {
     return (peer_id != netstate.my_id) &&
         (netstate.users[peer_id].progress != USER_UNUSED) &&
-        (my_player_number == get_host_player_id() || peer_id == SERVER_ID);
+        (network_is_host() || peer_id == SERVER_ID);
 }
 
 TbBool all_expected_exchange_frames_received(const TbBool has_received_frame[MAX_NET_USERS], TbBool is_host)
@@ -321,7 +321,7 @@ TbError exchange_frame_block(enum NetMessageType msg_type, void *send_buf, void 
 
     const struct ScreenPacket *screen_packets = (const struct ScreenPacket *)server_buf;
     TbBool has_received_frame[MAX_NET_USERS] = {false};
-    TbBool is_host = my_player_number == get_host_player_id();
+    TbBool is_host = network_is_host();
     TbClockMSec wait_start_time = LbTimerClock();
     TbBool stop_waiting = false;
     while (LbTimerClock() - wait_start_time < TIMEOUT_LOBBY_EXCHANGE) {
@@ -398,7 +398,7 @@ void wait_for_all_players(void)
 
     const TbClockMSec resend_interval = 50;
     TbBool has_received_frame[MAX_NET_USERS] = {false};
-    TbBool is_host = (my_player_number == get_host_player_id());
+    TbBool is_host = network_is_host();
     enum NetMessageType send_message_type;
     enum NetMessageType expected_message_type;
     if (is_host) {

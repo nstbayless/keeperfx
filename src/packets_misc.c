@@ -44,6 +44,7 @@ extern TbBool IMPRISON_BUTTON_DEFAULT;
 extern TbBool FLEE_BUTTON_DEFAULT;
 extern TbBool get_skip_heart_zoom_feature(void);
 extern unsigned long get_host_player_id(void);
+extern TbBool network_is_host(void);
 extern TbBool keeper_screen_redraw(void);
 /******************************************************************************/
 #ifdef __cplusplus
@@ -408,7 +409,7 @@ void set_packet_pause_toggle()
         keeper_screen_redraw();
         RendererPresentFrame();
         LbNetwork_BroadcastUnpause();
-        if (my_player_number == get_host_player_id()) {
+        if (network_is_host()) {
             process_pause_packet(0, 0);
         }
         unpausing_in_progress = 0;

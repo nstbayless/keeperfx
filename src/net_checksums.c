@@ -197,8 +197,8 @@ static struct ChecksumSnapshot* find_snapshot(GameTurn turn) {
 
 short checksums_different(void)
 {
-    int host_player_id = get_host_player_id();
-    struct Packet* host_packet = get_packet(host_player_id);
+    const NetUserId host_player_id = SERVER_ID;
+    struct Packet* host_packet = get_packet_direct(host_player_id);
     TbBigChecksum host_checksum = host_packet->checksum;
     TbBool mismatch = false;
 

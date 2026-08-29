@@ -146,7 +146,7 @@ TbError process_network_unpause_message(void)
     unpausing_in_progress = 1;
     keeper_screen_redraw();
     RendererPresentFrame();
-    if (my_player_number == get_host_player_id()) {
+    if (network_is_host()) {
         LbNetwork_BroadcastUnpause();
     }
     process_pause_packet(0, 0);

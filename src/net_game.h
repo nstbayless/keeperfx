@@ -55,6 +55,10 @@ void process_player_leave_game_packet(struct PlayerInfo *player);
 void process_disconnected_network_players(void);
 void sync_initial_network_seed(void);
 unsigned long get_host_player_id(void);
+/** True when this client is the network authority. Distinct from occupying player slot 0:
+ *  get_host_player_id() returns a constant that gets compared against three different index
+ *  spaces (player slot, packet index, net user id), which only works while they coincide. */
+TbBool network_is_host(void);
 /******************************************************************************/
 #ifdef __cplusplus
 }

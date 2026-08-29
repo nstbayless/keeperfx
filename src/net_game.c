@@ -103,6 +103,11 @@ unsigned long get_host_player_id(void) {
     return 0;
 }
 
+TbBool network_is_host(void)
+{
+    return (netstate.my_id == SERVER_ID);
+}
+
 int setup_old_network_service(void)
 {
     return setup_network_service(net_service_index_selected);
@@ -146,7 +151,7 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
 
 static TbBool verify_map_checksums(const struct StartupSyncPacket startup_sync_packets[MAX_NET_USERS])
 {
-    const TbBigChecksum *host = startup_sync_packets[get_host_player_id()].map_checksums;
+    const TbBigChecksum *host = startup_sync_packets[SERVER_ID].map_checksums;
     for (int i = 0; i < MAX_NET_USERS; i++) {
         const TbBigChecksum *client = startup_sync_packets[i].map_checksums;
         if (!net_player_info[i].network_user_active) {
@@ -173,7 +178,7 @@ static TbBool verify_map_checksums(const struct StartupSyncPacket startup_sync_p
 
 static TbBool verify_startup_sprite_zip_checksums(const struct StartupSyncPacket startup_sync_packets[MAX_NET_USERS])
 {
-    int host_player_id = get_host_player_id();
+    const NetUserId host_player_id = SERVER_ID;
     const struct StartupSyncPacket *host_sync = &startup_sync_packets[host_player_id];
     TbBool verified = true;
     for (int i = 0; i < MAX_NET_USERS; i++) {
@@ -265,7 +270,7 @@ static TbBool net_startup_sync_exchange_and_apply(void)
         create_frontend_error_box(5000, get_string(GUIStr_NetVerifyFxdataSame));
         return false;
     }
-    const struct StartupSyncPacket *host_sync = &s_startup_sync_packets[get_host_player_id()];
+    const struct StartupSyncPacket *host_sync = &s_startup_sync_packets[SERVER_ID];
     game.input_lag_turns = host_sync->initial_input_lag_turns;
     input_lag_reset();
     game.skip_initial_input_turns = calculate_skip_input();
@@ -477,7 +482,7 @@ static TbBool host_already_won_level(void)
         if ((GameTurn)offset > newest_turn) {
             break;
         }
-        const struct Packet *host_packet = get_history_packet(get_host_player_id(), newest_turn - offset);
+        const struct Packet *host_packet = get_history_packet(SERVER_ID, newest_turn - offset);
         if (host_packet != NULL && host_packet->action == PckA_FinishGame && host_packet->actn_par1 == VicS_WonLevel) {
             return true;
         }
@@ -530,7 +535,7 @@ void process_disconnected_network_players(void)
             }
         }
         if ((player->allocflags & PlaF_CompCtrl) == 0) {
-            network_lobby_ping = GetPing(my_player_number);
+            network_lobby_ping = GetPing(netstate.my_id);
             input_lag_reset_request(calculate_initial_input_lag());
             if (!host_disconnected && player->id_number != get_host_player_id() && player->player_name[0] != '\0') {
                 message_add_fmt(MsgType_Blank, 0, get_string(GUIStr_NetPlayerDisconnected), player->player_name);

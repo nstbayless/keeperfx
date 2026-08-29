@@ -259,7 +259,7 @@ static void get_hand_packet(PlayerNumber plyr_idx, struct ScreenPacket *nspck, i
     nspck->action_par1 = fe_net_level_selected;
     set_screen_packet_position(nspck, GetMouseX()*16/units_per_pixel_landview + map_info.screen_shift_x, GetMouseY()*16/units_per_pixel_landview + map_info.screen_shift_y);
     LevelNumber selected_level_number = get_selected_level_number();
-    if ((my_player_number == get_host_player_id()) && (selected_level_number > SINGLEPLAYER_NOTSTARTED)) {
+    if (network_is_host() && (selected_level_number > SINGLEPLAYER_NOTSTARTED)) {
         screen_packet_set_action(nspck, NetAct_HostStartLevel);
         nspck->action_par1 = selected_level_number;
         return;
@@ -507,8 +507,7 @@ static LevelNumber frontnetmap_update_players(void)
     if (!fe_network_active && (fe_net_level_selected > SINGLEPLAYER_NOTSTARTED)) {
         return fe_net_level_selected;
     }
-    const PlayerNumber host_player_number = get_host_player_id();
-    const TbBool is_host = my_player_number == host_player_number;
+    const TbBool is_host = network_is_host();
     const TbBool level_not_selected = get_selected_level_number() <= SINGLEPLAYER_NOTSTARTED;
     const TbBool can_start_level = is_host && level_not_selected;
     struct ScreenPacket* my_nspck = &net_screen_packet[my_player_number];
@@ -543,7 +542,8 @@ static LevelNumber frontnetmap_update_players(void)
             return SINGLEPLAYER_NOTSTARTED;
         }
         action = screen_packet_action(nspck);
-        if ((i == host_player_number) && (action == NetAct_HostStartLevel) && (nspck->action_par1 > SINGLEPLAYER_NOTSTARTED)) {
+        // i indexes net_screen_packet[], i.e. net user ids: the host is SERVER_ID.
+        if ((i == SERVER_ID) && (action == NetAct_HostStartLevel) && (nspck->action_par1 > SINGLEPLAYER_NOTSTARTED)) {
             return nspck->action_par1;
         }
         if (can_start_level) {

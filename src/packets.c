@@ -690,7 +690,7 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx)
           quit_game = 1;
           return 0;
         }
-        TbBool host_packet = player->packet_num == get_host_player_id();
+        TbBool host_packet = player->packet_num == SERVER_ID;
         if (!my_player) {
           if (host_packet && (player->victory_state != VicS_LostLevel)) {
             get_my_player()->additional_flags &= ~PlaAF_UnlockedLordTorture;
@@ -1573,7 +1573,7 @@ static void load_old_packets(void)
             MULTIPLAYER_LOG("load_input_lag_packets: cleared packet[%s] (no stored packet)", player_name);
         }
     }
-    input_lag_observe_host_packet(&game.packets[get_host_player_id()]);
+    input_lag_observe_host_packet(&game.packets[SERVER_ID]);
 }
 
 void set_local_packet_turn(void) {

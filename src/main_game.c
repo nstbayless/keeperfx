@@ -66,7 +66,6 @@
 
 #include "post_inc.h"
 
-extern TbBool force_player_num;
 extern TbBool IMPRISON_BUTTON_DEFAULT;
 extern TbBool FLEE_BUTTON_DEFAULT;
 extern unsigned long features_enabled;

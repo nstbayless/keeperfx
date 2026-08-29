@@ -197,6 +197,7 @@ extern unsigned char *lightning_palette;
 /******************************************************************************/
 // Variables inside the main module
 extern short default_loc_player;
+extern TbBool force_player_num;
 extern struct GuiBox *gui_cheat_box_1;
 extern struct GuiBox *gui_cheat_box_2;
 extern struct GuiBox *gui_cheat_box_3;

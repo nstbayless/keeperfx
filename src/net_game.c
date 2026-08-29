@@ -31,6 +31,7 @@
 #include "net_resync.h"
 
 #include "player_data.h"
+#include "player_instances.h"
 #include "front_landview.h"
 #include "player_utils.h"
 #include "packets.h"
@@ -69,6 +70,7 @@ struct StartupSyncPacket {
     uint32_t zoom_distance_setting;
     uint32_t frontview_zoom_distance_setting;
     uint8_t initial_input_lag_turns;
+    uint8_t requested_slot;
 };
 #pragma pack()
 
@@ -103,6 +105,101 @@ unsigned long get_host_player_id(void) {
     return 0;
 }
 
+static void setup_local_player_number(void);
+
+/** Sentinel in StartupSyncPacket.requested_slot meaning "assign me automatically". */
+#define NET_SLOT_AUTO 0xFF
+
+/* Network user id -> player slot.
+ *
+ * Derived from the exchanged startup sync packets, so every machine computes the same
+ * table. Kept out of struct Game deliberately: that struct is written verbatim to savegames
+ * behind a size check (game_saves.c), so it cannot take new fields for state that is
+ * re-derived at the start of every match anyway. */
+static PlayerNumber s_net_user_slot[MAX_NET_USERS];
+
+void reset_net_user_slots(void)
+{
+    for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
+        s_net_user_slot[id] = -1;
+    }
+}
+
+PlayerNumber net_user_player_slot(NetUserId id)
+{
+    if ((id < 0) || (id >= MAX_NET_USERS)) {
+        return -1;
+    }
+    return s_net_user_slot[id];
+}
+
+/** The player slot the host occupies. The host is always SERVER_ID, but that no longer
+ *  implies player slot 0 once slots can be requested. */
+PlayerNumber net_host_player_slot(void)
+{
+    PlayerNumber slot = net_user_player_slot(SERVER_ID);
+    return (slot >= 0) ? slot : (PlayerNumber)get_host_player_id();
+}
+
+/** Can a network user occupy this player slot?
+ *
+ * Multiplayer is limited to the four keeper slots. PLAYER_GOOD would additionally need the
+ * PlaF_CompCtrl carve-out that init_players_local_game() applies, PLAYER_NEUTRAL can never
+ * win, and no shipped map has start positions past PLAYERS = 4. */
+static TbBool net_slot_is_selectable(long slot)
+{
+    return (slot >= PLAYER0) && (slot <= PLAYER3);
+}
+
+/** Build the user -> slot table from the exchanged startup sync packets.
+ *
+ * Every machine runs this over identical data in ascending user order, so all of them agree
+ * without any extra protocol. Users that asked for a slot get it; the rest fill the lowest
+ * unclaimed slots, which reproduces the old join-order behaviour exactly when nobody asks. */
+static void resolve_net_user_slots(const struct StartupSyncPacket startup_sync_packets[MAX_NET_USERS])
+{
+    TbBool slot_claimed[PLAYERS_COUNT] = {false};
+    reset_net_user_slots();
+
+    for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
+        if (!net_player_info[id].network_user_active) {
+            continue;
+        }
+        long wanted = startup_sync_packets[id].requested_slot;
+        if (wanted == NET_SLOT_AUTO) {
+            continue;
+        }
+        if (!net_slot_is_selectable(wanted) || slot_claimed[wanted]) {
+            WARNLOG("User %d cannot have player slot %ld, assigning automatically", (int)id, wanted);
+            continue;
+        }
+        s_net_user_slot[id] = (PlayerNumber)wanted;
+        slot_claimed[wanted] = true;
+    }
+
+    for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
+        if (!net_player_info[id].network_user_active || (s_net_user_slot[id] >= 0)) {
+            continue;
+        }
+        for (long slot = PLAYER0; slot <= PLAYER3; slot++) {
+            if (!slot_claimed[slot]) {
+                s_net_user_slot[id] = (PlayerNumber)slot;
+                slot_claimed[slot] = true;
+                break;
+            }
+        }
+        if (s_net_user_slot[id] < 0) {
+            ERRORLOG("No free player slot for network user %d", (int)id);
+        }
+    }
+
+    for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
+        if (net_player_info[id].network_user_active) {
+            NETLOG("Network user %d -> player slot %d", (int)id, (int)s_net_user_slot[id]);
+        }
+    }
+}
+
 TbBool network_is_host(void)
 {
     return (netstate.my_id == SERVER_ID);
@@ -116,10 +213,13 @@ int setup_old_network_service(void)
 
 static void setup_players_from_startup_packets(const struct StartupSyncPacket startup_sync_packets[MAX_NET_USERS])
 {
-    int k = 0;
     for (int i = 0; i < MAX_NET_USERS; i++) {
         const struct StartupSyncPacket *sync = &startup_sync_packets[i];
         if (!net_player_info[i].network_user_active) {
+            continue;
+        }
+        int k = s_net_user_slot[i];
+        if (k < 0) {
             continue;
         }
         struct PlayerInfo *player = get_player(k);
@@ -145,7 +245,6 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
             game.creatures_tend_flee = flee;
         }
         snprintf(player->player_name, sizeof(struct TbNetworkPlayerName), "%s", net_player[i].name);
-        k++;
     }
 }
 
@@ -245,6 +344,8 @@ static void build_local_startup_sync(void)
     s_local_startup_sync.zoom_distance_setting = zoom_distance_setting;
     s_local_startup_sync.frontview_zoom_distance_setting = frontview_zoom_distance_setting;
     s_local_startup_sync.initial_input_lag_turns = calculate_initial_input_lag();
+    // -human names the player slot we want; force_player_num says it was given explicitly.
+    s_local_startup_sync.requested_slot = force_player_num ? (uint8_t)default_loc_player : NET_SLOT_AUTO;
 }
 
 static TbBool net_startup_sync_exchange_and_apply(void)
@@ -277,32 +378,29 @@ static TbBool net_startup_sync_exchange_and_apply(void)
     NETLOG("Startup input lag: %d", game.input_lag_turns);
     zoom_distance_setting = host_sync->zoom_distance_setting;
     frontview_zoom_distance_setting = host_sync->frontview_zoom_distance_setting;
+    resolve_net_user_slots(s_startup_sync_packets);
+    // Must precede player setup: init_player() and friends branch on is_my_player(), which
+    // is meaningless while my_player_number still holds our net user id.
+    setup_local_player_number();
     setup_players_from_startup_packets(s_startup_sync_packets);
     return true;
 }
 
-static void setup_network_player_numbers(void)
+/** Switch my_player_number from the net user id it carries during the lobby to the player
+ *  slot this machine drives.
+ *
+ * Cannot run earlier: the lobby and land view index net_screen_packet[] by user id while
+ * comparing against my_player_number, so the two must stay equal until the match starts. */
+static void setup_local_player_number(void)
 {
-    TbBool is_set = false;
-    int k = 0;
-    SYNCDBG(6, "Starting");
-    for (int i = 0; i < MAX_NET_USERS; i++)
-    {
-        struct PlayerInfo* player = get_player(i);
-        if (net_player_info[i].network_user_active)
-        {
-            player->primary_user_id = i;
-            if ((!is_set) && (my_player_number == i))
-            {
-                is_set = true;
-                my_player_number = k;
-            }
-            k++;
-        }
-    }
-    if (!is_set) {
+    PlayerNumber slot = net_user_player_slot(netstate.my_id);
+    if (slot < 0) {
         ERRORLOG("Local player number %d not found among active network players", my_player_number);
+        return;
     }
+    my_player_number = slot;
+    game.local_plyr_idx = slot;
+    SYNCLOG("Local player is net user %d, player slot %d", (int)netstate.my_id, (int)slot);
 }
 
 void setup_count_players(void)
@@ -325,7 +423,6 @@ TbBool init_players_network_game(void)
 {
     SYNCDBG(4,"Starting");
     TbBool initialized = true;
-    setup_network_player_numbers();
     for (int zip_idx = 0; zip_idx < REQUIRED_SPRITE_ZIP_COUNT; zip_idx++) {
         if (required_sprite_zip_checksums[zip_idx] != 0) {
             continue;

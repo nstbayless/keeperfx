@@ -235,17 +235,21 @@ void draw_out_of_sync_box(long a1, long a2, long box_width)
 
 void setup_alliances(void)
 {
+    // The lobby alliance grid is indexed by network user, while set_ally_with_player()
+    // takes player slots. Identical only while slots are not requested, so translate.
     for (int i = 0; i < MAX_NET_USERS; i++) {
-        if (!player_exists(get_player(i))) {
+        PlayerNumber slot_i = net_user_player_slot(i);
+        if ((slot_i < 0) || !player_exists(get_player(slot_i))) {
             continue;
         }
         for (int k = i + 1; k < MAX_NET_USERS; k++) {
-            if (!player_exists(get_player(k))) {
+            PlayerNumber slot_k = net_user_player_slot(k);
+            if ((slot_k < 0) || (slot_k == slot_i) || !player_exists(get_player(slot_k))) {
                 continue;
             }
             if (frontend_is_player_allied(i, k)) {
-                set_ally_with_player(i, k, true);
-                set_ally_with_player(k, i, true);
+                set_ally_with_player(slot_i, slot_k, true);
+                set_ally_with_player(slot_k, slot_i, true);
             }
         }
     }

@@ -59,6 +59,12 @@ unsigned long get_host_player_id(void);
  *  get_host_player_id() returns a constant that gets compared against three different index
  *  spaces (player slot, packet index, net user id), which only works while they coincide. */
 TbBool network_is_host(void);
+
+/* Network user -> player slot mapping. */
+void reset_net_user_slots(void);
+PlayerNumber net_user_player_slot(NetUserId id);
+/** The player slot the host occupies; no longer necessarily 0. */
+PlayerNumber net_host_player_slot(void);
 /******************************************************************************/
 #ifdef __cplusplus
 }

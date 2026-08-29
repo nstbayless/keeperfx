@@ -827,7 +827,7 @@ static short get_global_inputs(void)
       return true;
   if (player->victory_state != VicS_Undecided && is_game_key_pressed(Gkey_FinishLevel, true, false))
       {
-        if ((player->victory_state == VicS_LostLevel) && network_is_active() && (player->id_number == get_host_player_id()) && network_human_contenders_remain())
+        if ((player->victory_state == VicS_LostLevel) && network_is_active() && (player->id_number == net_host_player_slot()) && network_human_contenders_remain())
         {
             return true;
         }

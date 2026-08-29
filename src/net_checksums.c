@@ -31,6 +31,8 @@
 #include "creature_control.h"
 #include "thing_creature.h"
 #include "thing_list.h"
+#include "engine_camera.h"
+#include "net_main.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -174,6 +176,26 @@ static void compute_checksums(struct DesyncChecksums* checksums) {
         }
     }
     checksums->players = 0;
+    // Cameras owned by users sharing a slot live outside PlayerInfo but are replicated and
+    // still feed the simulation through any_player_close_enough_to_see().
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        struct Camera *cams = get_user_cameras(user);
+        if (cams == NULL) {
+            continue;
+        }
+        PlayerNumber slot = net_user_player_slot(user);
+        if (slot < 0) {
+            continue;
+        }
+        struct PlayerInfo *owner = get_player(slot);
+        struct Camera *cam = get_active_camera_of_set(cams, owner);
+        if ((cam == NULL) || (owner->victory_state != VicS_Undecided)) {
+            continue;
+        }
+        CHECKSUM_ADD(checksums->players, cam->mappos.x.val);
+        CHECKSUM_ADD(checksums->players, cam->mappos.y.val);
+        CHECKSUM_ADD(checksums->players, cam->mappos.z.val);
+    }
     for (int i = 0; i < PLAYERS_COUNT; i++) {
         struct PlayerInfo* player = get_player(i);
         if (player_exists(player)) {

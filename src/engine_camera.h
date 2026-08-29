@@ -22,6 +22,7 @@
 
 #include "bflib_basics.h"
 #include "globals.h"
+#include "net_main.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -125,6 +126,28 @@ TbBool view_move_camera_to_position(struct Camera *cam, MapCoord x, MapCoord y, 
 
 void update_all_players_cameras(void);
 void init_player_cameras(struct PlayerInfo *player);
+
+/* Per-network-user cameras.
+ *
+ * A player slot may be driven by several users, and each needs its own camera. The set stays
+ * replicated - every machine applies every user's packet, so all of them compute identical
+ * values - and that matters because camera position feeds the simulation:
+ * any_player_close_enough_to_see() gates effect-element creation, and effect elements come
+ * out of the shared thing pool, so a divergence there could make a real thing fail to
+ * allocate on one machine only.
+ *
+ * Only users that are not their slot's primary get an entry; the primary keeps using
+ * PlayerInfo.cameras, which leaves the one-user-per-slot case untouched. */
+void reset_user_cameras(void);
+void init_user_cameras_from_player(NetUserId user, const struct PlayerInfo *player);
+/** Camera set owned by a user, or NULL if it uses its player's own cameras. */
+struct Camera *get_user_cameras(NetUserId user);
+/** Camera set a given user drives for this player. */
+struct Camera *get_user_cameras_or_players(NetUserId user, struct PlayerInfo *player);
+/** Authoritative camera set behind this machine's own view. */
+struct Camera *get_my_authoritative_cameras(const struct PlayerInfo *player);
+/** Active camera within a camera set, using the player's current view selection. */
+struct Camera *get_active_camera_of_set(struct Camera *cams, const struct PlayerInfo *player);
 void update_first_person_position(struct Camera *cam, struct Thing *thing, int eye_height);
 
 /******************************************************************************/

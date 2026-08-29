@@ -33,6 +33,7 @@
 #include "player_data.h"
 #include "player_instances.h"
 #include "local_camera.h"
+#include "engine_camera.h"
 #include "front_landview.h"
 #include "player_utils.h"
 #include "packets.h"
@@ -196,6 +197,7 @@ static void resolve_net_user_slots(const struct StartupSyncPacket startup_sync_p
 {
     TbBool slot_claimed[PLAYERS_COUNT] = {false};
     reset_net_user_slots();
+    reset_user_cameras();
 
     for (NetUserId id = 0; id < MAX_NET_USERS; id++) {
         if (!net_player_info[id].network_user_active) {
@@ -263,6 +265,7 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
         if (flag_is_set(player->allocflags, PlaF_Allocated)) {
             // Another user already built this slot; we share it. The slot's shared state
             // belongs to the first user, so only do the machine-local parts here.
+            init_user_cameras_from_player(i, player);
             if (i == netstate.my_id) {
                 init_player_local_view(player);
                 init_local_cameras(player);

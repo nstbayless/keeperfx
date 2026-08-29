@@ -36,6 +36,8 @@
 #include "player_instances.h"
 #include "frontmenu_ingame_map.h"
 #include "local_camera.h"
+#include "net_main.h"
+#include "net_game.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -398,6 +400,69 @@ void view_set_camera_tilt(struct Camera *cam, unsigned char mode)
     cam->rotation_angle_y = tilt;
 }
 
+static struct Camera user_cameras[MAX_NET_USERS][CamIV_EndList];
+static TbBool user_cameras_valid[MAX_NET_USERS];
+
+void reset_user_cameras(void)
+{
+    memset(user_cameras, 0, sizeof(user_cameras));
+    memset(user_cameras_valid, 0, sizeof(user_cameras_valid));
+}
+
+void init_user_cameras_from_player(NetUserId user, const struct PlayerInfo *player)
+{
+    if ((user < 0) || (user >= MAX_NET_USERS) || (player == NULL)) {
+        return;
+    }
+    for (int cam_idx = 0; cam_idx < CamIV_EndList; cam_idx++) {
+        user_cameras[user][cam_idx] = player->cameras[cam_idx];
+    }
+    user_cameras_valid[user] = true;
+}
+
+struct Camera *get_user_cameras(NetUserId user)
+{
+    if ((user < 0) || (user >= MAX_NET_USERS) || !user_cameras_valid[user]) {
+        return NULL;
+    }
+    return user_cameras[user];
+}
+
+struct Camera *get_active_camera_of_set(struct Camera *cams, const struct PlayerInfo *player)
+{
+    if ((cams == NULL) || (player == NULL)) {
+        return NULL;
+    }
+    unsigned char cam_idx = player->active_camera_idx;
+    if (cam_idx >= CamIV_EndList) {
+        cam_idx = CamIV_Isometric;
+    }
+    return &cams[cam_idx];
+}
+
+struct Camera *get_user_cameras_or_players(NetUserId user, struct PlayerInfo *player)
+{
+    if (player == NULL) {
+        return NULL;
+    }
+    struct Camera *cams = get_user_cameras(user);
+    return (cams != NULL) ? cams : player->cameras;
+}
+
+struct Camera *get_my_authoritative_cameras(const struct PlayerInfo *player)
+{
+    if (player == NULL) {
+        return NULL;
+    }
+    if (network_is_active()) {
+        struct Camera *cams = get_user_cameras(netstate.my_id);
+        if (cams != NULL) {
+            return cams;
+        }
+    }
+    return ((struct PlayerInfo *)player)->cameras;
+}
+
 void init_player_cameras(struct PlayerInfo *player)
 {
     struct Thing* heartng = get_player_soul_container(player->id_number);
@@ -674,11 +739,14 @@ TbBool view_move_camera_to_position(struct Camera *cam, MapCoord x, MapCoord y, 
     return (*positions[0] == targets[0]) && (*positions[1] == targets[1]);
 }
 
-void update_player_camera(struct PlayerInfo *player)
+/** Advance one camera set. Packet-driven movement only records inertia, so this is where it
+ *  becomes position; a set never passed through here simply never moves. */
+static void update_camera_set(struct PlayerInfo *player, struct Camera *cams)
 {
-    struct Dungeon *dungeon = get_players_dungeon(player);
-    struct Camera *cam = get_player_active_camera(player);
-
+    struct Camera *cam = get_active_camera_of_set(cams, player);
+    if (cam == NULL) {
+        return;
+    }
     view_process_camera_inertia(cam);
     switch (cam->view_mode)
     {
@@ -695,15 +763,22 @@ void update_player_camera(struct PlayerInfo *player)
     case PVM_IsoWibbleView:
     case PVM_IsoStraightView:
         // correct according to dissassembly
-        player->cameras[CamIV_FrontView].mappos.x.val = cam->mappos.x.val;
-        player->cameras[CamIV_FrontView].mappos.y.val = cam->mappos.y.val;
+        cams[CamIV_FrontView].mappos.x.val = cam->mappos.x.val;
+        cams[CamIV_FrontView].mappos.y.val = cam->mappos.y.val;
         break;
     case PVM_FrontView:
         // correct according to dissassembly
-        player->cameras[CamIV_Isometric].mappos.x.val = cam->mappos.x.val;
-        player->cameras[CamIV_Isometric].mappos.y.val = cam->mappos.y.val;
+        cams[CamIV_Isometric].mappos.x.val = cam->mappos.x.val;
+        cams[CamIV_Isometric].mappos.y.val = cam->mappos.y.val;
         break;
     }
+}
+
+void update_player_camera(struct PlayerInfo *player)
+{
+    struct Dungeon *dungeon = get_players_dungeon(player);
+
+    update_camera_set(player, player->cameras);
     if (dungeon->camera_deviate_quake) {
         dungeon->camera_deviate_quake--;
     }
@@ -724,6 +799,25 @@ void update_all_players_cameras(void)
     {
           update_player_camera(player);
     }
+  }
+
+  // Camera sets owned by users sharing a slot hang off no PlayerInfo, so advance them here
+  // too - otherwise their packet-driven movement is recorded as inertia and never applied.
+  for (NetUserId user = 0; user < MAX_NET_USERS; user++)
+  {
+      struct Camera *cams = get_user_cameras(user);
+      if (cams == NULL) {
+          continue;
+      }
+      PlayerNumber slot = net_user_player_slot(user);
+      if (slot < 0) {
+          continue;
+      }
+      struct PlayerInfo *owner = get_player(slot);
+      if (!player_exists(owner) || ((owner->allocflags & PlaF_CompCtrl) != 0)) {
+          continue;
+      }
+      update_camera_set(owner, cams);
   }
 
   // Send catchup packets if local camera has drifted too far from packet-based camera

@@ -33,6 +33,8 @@
 #include "frontmenu_ingame_map.h"
 
 #include <math.h>
+#include "net_game.h"
+#include "net_main.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -91,8 +93,8 @@ void send_camera_catchup_packets(void)
     }
 
     struct Camera* local_cam = &destination_local_cameras[cam_idx];
-    struct Camera* packet_cam = &player->cameras[cam_idx];
-    struct Packet* pckt = get_packet(player->id_number);
+    struct Camera* packet_cam = &get_my_authoritative_cameras(player)[cam_idx];
+    struct Packet* pckt = get_local_packet();
 
     long diff_map_x = local_cam->mappos.x.val - packet_cam->mappos.x.val;
     long diff_map_y = local_cam->mappos.y.val - packet_cam->mappos.y.val;
@@ -145,8 +147,9 @@ void init_local_cameras(struct PlayerInfo *player)
     if (!is_my_player(player)) {
         return;
     }
+    struct Camera *auth = get_my_authoritative_cameras(player);
     for (int i = 0; i < 4; i++) {
-        sync_camera_state(i, &player->cameras[i]);
+        sync_camera_state(i, &auth[i]);
     }
     local_camera_move_active = false;
     local_camera_ready = true;
@@ -319,8 +322,9 @@ void sync_local_camera(struct PlayerInfo *player)
         sync_first_person_camera(camera, player);
         return;
     }
+    struct Camera *auth = get_my_authoritative_cameras(player);
     for (int cam_idx = CamIV_Isometric; cam_idx <= CamIV_FrontView; cam_idx++) {
-        sync_camera_state(cam_idx, &player->cameras[cam_idx]);
+        sync_camera_state(cam_idx, &auth[cam_idx]);
     }
 }
 
@@ -329,8 +333,9 @@ void set_local_camera_destination(struct PlayerInfo *player)
     if (!is_my_player(player) || !local_camera_ready) {
         return;
     }
+    struct Camera *auth = get_my_authoritative_cameras(player);
     for (int cam_idx = CamIV_Isometric; cam_idx <= CamIV_FrontView; cam_idx++) {
-        destination_local_cameras[cam_idx] = player->cameras[cam_idx];
+        destination_local_cameras[cam_idx] = auth[cam_idx];
     }
     struct Thing *ctrltng = thing_get(player->controlled_thing_idx);
     if (thing_exists(ctrltng)) {
@@ -345,8 +350,9 @@ struct Camera* get_local_camera(struct Camera* cam)
         return cam;
     }
     struct PlayerInfo *player = get_my_player();
+    struct Camera *auth = get_my_authoritative_cameras(player);
     for (int cam_idx = CamIV_Isometric; cam_idx <= CamIV_FrontView; cam_idx++) {
-        if (cam == &player->cameras[cam_idx]) {
+        if ((cam == &player->cameras[cam_idx]) || (cam == &auth[cam_idx])) {
             return &local_cameras[cam_idx];
         }
     }

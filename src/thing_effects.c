@@ -50,6 +50,9 @@
 #include "thing_shots.h"
 #include "thing_stats.h"
 #include <math.h>
+#include "net_game.h"
+#include "net_main.h"
+#include "engine_camera.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -78,11 +81,50 @@ struct EffectElementConfigStats *get_effect_element_model_stats(ThingModel tngmo
     return &game.conf.effects_conf.effectelement_cfgstats[tngmodel];
 }
 
+static TbBool camera_close_enough_to_see(struct Camera *camera, const struct Coord3d *pos)
+{
+    short limit = 24 * COORD_PER_STL;
+    if (camera == NULL)
+        return false;
+    if (camera->view_mode != PVM_FrontView)
+    {
+        if (camera->zoom >= CAMERA_ZOOM_MIN)
+        {
+            limit = SHRT_MAX - (2 * camera->zoom);
+        }
+    }
+    else
+    {
+        if (camera->zoom >= FRONTVIEW_CAMERA_ZOOM_MIN)
+        {
+            limit = SHRT_MAX - (camera->zoom / 3);
+        }
+    }
+    return (get_chessboard_distance(&camera->mappos, pos) <= limit);
+}
+
 static TbBool any_player_close_enough_to_see(const struct Coord3d *pos)
 {
     struct PlayerInfo *player;
     int i;
     short limit = 24 * COORD_PER_STL;
+    // This asks whether any human can see the point, so it must consider every user. Users
+    // sharing a slot own cameras that hang off no PlayerInfo; checked first so the common
+    // path below is unchanged.
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++)
+    {
+        struct Camera *cams = get_user_cameras(user);
+        if (cams == NULL)
+            continue;
+        PlayerNumber slot = net_user_player_slot(user);
+        if (slot < 0)
+            continue;
+        struct PlayerInfo *owner = get_player(slot);
+        if (!player_exists(owner) || ((owner->allocflags & PlaF_CompCtrl) != 0))
+            continue;
+        if (camera_close_enough_to_see(get_active_camera_of_set(cams, owner), pos))
+            return true;
+    }
     for (i=0; i < PLAYERS_COUNT; i++)
     {
         player = get_player(i);

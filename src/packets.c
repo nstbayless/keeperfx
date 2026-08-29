@@ -562,7 +562,9 @@ void process_players_dungeon_control_packet_control(long plyr_idx, NetUserId use
     struct PlayerInfo* player = get_player(plyr_idx);
     struct Packet* pckt = get_packet_direct(user);
     SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
-    struct Camera* cam = get_player_active_camera(player);
+    // Drive the camera of whichever user sent this packet: on a shared slot each user
+    // steers its own.
+    struct Camera* cam = get_active_camera_of_set(get_user_cameras_or_players(user, player), player);
     if (cam == NULL) {
         ERRORLOG("No active camera");
         return;
@@ -640,7 +642,7 @@ TbBool process_players_global_packet_action(PlayerNumber plyr_idx, NetUserId use
   struct Thing *thing;
   int i;
 
-  process_camera_action(player->cameras, pckt);
+  process_camera_action(get_user_cameras_or_players(user, player), pckt);
 
   switch (pckt->action)
   {

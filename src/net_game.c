@@ -31,7 +31,9 @@
 #include "net_resync.h"
 
 #include "player_data.h"
+#include "player_instances.h"
 #include "front_landview.h"
+#include "local_camera.h"
 #include "player_utils.h"
 #include "light_data.h"
 #include "packets.h"
@@ -167,8 +169,6 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
         }
         struct PlayerInfo *player = get_player(k);
         struct UserState* ustate = get_user_state(i);
-        player->id_number = k;
-        player->allocflags |= PlaF_Allocated;
         init_user_state(i, k);
         switch (sync->video_rotate_mode) {
             case 0: ustate->view_mode_restore = PVM_IsoWibbleView; break;
@@ -176,6 +176,21 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
             case 2: ustate->view_mode_restore = PVM_FrontView; break;
             default: ustate->view_mode_restore = PVM_IsoWibbleView; break;
         }
+        if (flag_is_set(player->allocflags, PlaF_Allocated))
+        {
+            SYNCLOG("Network user %d shares player %d", i, k);
+            init_user_defaults(i);
+            reset_user_view_type(i, PVT_DungeonTop);
+            init_user_cameras(i);
+            if (i == netstate.my_id)
+            {
+                init_local_user_view();
+                init_local_cameras(player);
+            }
+            continue;
+        }
+        player->id_number = k;
+        player->allocflags |= PlaF_Allocated;
         player->is_active = 1;
         init_player(player, 0);
         player->isometric_view_zoom_level = sync->isometric_view_zoom_level;
@@ -340,10 +355,11 @@ static void setup_network_player_numbers(const PlayerNumber force[MAX_NET_USERS]
     for (NetUserId i = 0; i < MAX_NET_USERS; ++i)
     {
         if (net_user_info[i].network_user_active) {
-            NETLOG("Network user %d%s -> player %d",
+            NETLOG("Network user %d%s -> player %d%s",
                 (int)i,
                 i == get_local_user() ? " (local)" : "",
-                (int)game.user_states[i].player_id
+                (int)game.user_states[i].player_id,
+                i == get_player_primary_user(get_player(game.user_states[i].player_id)) ? "" : " (shared)"
             );
         }
     }
@@ -393,7 +409,7 @@ static TbBool net_startup_sync_exchange_and_apply(void)
     return true;
 }
 
-void setup_count_players(void)
+void setup_count_human_players(void)
 {
   if (game.game_kind == GKind_LocalGame)
   {
@@ -401,10 +417,19 @@ void setup_count_players(void)
   } else
   {
     game.active_players_count = 0;
+    TbBool player_counted[PLAYERS_COUNT] = {false};
     for (int i = 0; i < MAX_NET_USERS; i++)
     {
-      if (net_user_info[i].network_user_active)
-        game.active_players_count++;
+      if (!net_user_info[i].network_user_active)
+        continue;
+      PlayerNumber plyr_idx = get_net_user_player_number(i);
+      if (plyr_idx != PLAYER_NONE)
+      {
+        if (player_counted[plyr_idx])
+          continue;
+        player_counted[plyr_idx] = true;
+      }
+      game.active_players_count++;
     }
   }
 }
@@ -571,7 +596,7 @@ static void stop_network_game_state(void)
     game.skip_initial_input_turns = 0;
     input_lag_reset();
     multiplayer_speed_adjustment_ns = 0;
-    setup_count_players();
+    setup_count_human_players();
 }
 
 static void stop_network_game_and_quit_to_main_menu(void)
@@ -643,15 +668,12 @@ static void resolve_disconnect_victories(struct PlayerInfo *departed)
     }
 }
 
-static void abandon_network_player(struct PlayerInfo *player, TbBool announce)
+static void abandon_network_player(struct PlayerInfo *player)
 {
     if ((player->allocflags & PlaF_CompCtrl) == 0) {
         // re-negotiate input latency
         network_lobby_ping = GetPing(my_player_number);
         input_lag_reset_request(calculate_initial_input_lag());
-        if (announce && player->player_name[0] != '\0') {
-            message_add_fmt(MsgType_Blank, 0, get_string(GUIStr_NetPlayerDisconnected), player->player_name);
-        }
         JUSTLOG("p:%d player %s departed", player->id_number, player->player_name);
         if (player->victory_state == VicS_Undecided) {
             replace_network_player_with_ai(player);
@@ -670,7 +692,14 @@ static struct PlayerInfo *drop_network_user(NetUserId user)
         return NULL;
     }
     struct PlayerInfo *player = get_player(ustate->player_id);
-    JUSTLOG("u:%d user left the match (player %d)", (int)user, (int)ustate->player_id);
+    const char *name = network_user_name(user);
+    if (name == NULL) {
+        name = "";
+    }
+    JUSTLOG("u:%d user %s left the match (player %d)", (int)user, name, (int)ustate->player_id);
+    if ((user != SERVER_ID) && (name[0] != '\0')) {
+        message_add_fmt(MsgType_Blank, 0, get_string(GUIStr_NetPlayerDisconnected), name);
+    }
     if (ustate->cursor_light_idx != 0) {
         light_delete_light(ustate->cursor_light_idx);
     }
@@ -679,7 +708,7 @@ static struct PlayerInfo *drop_network_user(NetUserId user)
     if (!player_exists(player) || (get_player_primary_user(player) >= 0)) {
         return NULL;
     }
-    abandon_network_player(player, user != SERVER_ID);
+    abandon_network_player(player);
     return player;
 }
 

@@ -802,9 +802,35 @@ void init_user_state(NetUserId user, PlayerNumber player_id)
     }
 }
 
+void init_local_user_view(void)
+{
+    struct UserState* ustate = get_local_user_state();
+    if (default_tag_mode != 3)
+    {
+        settings.highlight_mode = default_tag_mode - 1;
+    }
+    ustate->roomspace_highlight_mode = settings.highlight_mode;
+    ustate->roomspace_mode = settings.highlight_mode;
+    set_flag(game.operation_flags, GOF_ShowPanel);
+    set_gui_visible(true);
+    init_gui();
+    turn_on_menu(GMnu_MAIN);
+    turn_on_menu(GMnu_ROOM);
+}
+
+void init_user_defaults(NetUserId user)
+{
+    struct UserState* ustate = get_user_state(user);
+    ustate->continue_work_state = PSt_CtrlDungeon;
+    ustate->work_state = PSt_CtrlDungeon;
+    ustate->roomspace_width = 1;
+    ustate->roomspace_height = 1;
+    ustate->roomspace_detection_looseness = DEFAULT_USER_ROOMSPACE_DETECTION_LOOSENESS;
+    ustate->user_defined_roomspace_width = DEFAULT_USER_ROOMSPACE_WIDTH;
+}
+
 void init_player(struct PlayerInfo *player, short no_explore)
 {
-    struct UserState* ustate = get_player_user_state(player);
     SYNCDBG(5,"Starting");
     if (is_my_player(player))
     {
@@ -814,28 +840,13 @@ void init_player(struct PlayerInfo *player, short no_explore)
         setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
         local_state.main_palette = engine_palette;
     }
-    ustate->continue_work_state = PSt_CtrlDungeon;
-    ustate->work_state = PSt_CtrlDungeon;
+    init_user_defaults(get_player_primary_user(player));
     player->isometric_view_zoom_level = settings.isometric_view_zoom_level;
     player->frontview_zoom_level = settings.frontview_zoom_level;
     if (is_my_player(player))
     {
-        if (default_tag_mode != 3)
-        {
-            settings.highlight_mode = default_tag_mode - 1;
-        }
-        ustate->roomspace_highlight_mode = settings.highlight_mode;
-        ustate->roomspace_mode = settings.highlight_mode;
-        set_flag(game.operation_flags, GOF_ShowPanel);
-        set_gui_visible(true);
-        init_gui();
-        turn_on_menu(GMnu_MAIN);
-        turn_on_menu(GMnu_ROOM);
+        init_local_user_view();
     }
-    ustate->roomspace_width = 1;
-    ustate->roomspace_height = 1;
-    ustate->roomspace_detection_looseness = DEFAULT_USER_ROOMSPACE_DETECTION_LOOSENESS;
-    ustate->user_defined_roomspace_width = DEFAULT_USER_ROOMSPACE_WIDTH;
     switch (game.game_kind)
     {
     case GKind_LocalGame:

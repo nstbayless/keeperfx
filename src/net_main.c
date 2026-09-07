@@ -47,8 +47,7 @@ void UpdateLocalPlayerInfo(NetUserId id)
     }
     local_user_info[id].network_user_active = active;
     if (!local_user_info[id].network_user_active) {
-        memset(local_user_info[id].name, 0, sizeof(local_user_info[id].name));
-        return;
+        return; // name kept so the departure can still be announced
     }
     strcpy(local_user_info[id].name, netstate.users[id].name);
 }

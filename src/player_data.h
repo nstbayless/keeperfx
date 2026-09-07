@@ -321,6 +321,7 @@ TbBool player_exists(const struct PlayerInfo *player);
 TbBool is_my_player(const struct PlayerInfo *player);
 struct UserState *get_user_state(NetUserId user);
 struct UserState *get_player_user_state(const struct PlayerInfo *player);
+NetUserId get_player_local_or_primary_user(const struct PlayerInfo *player);
 struct UserState *get_local_user_state(void);
 TbBool user_state_invalid(const struct UserState *ustate);
 TbBool is_my_player_number(PlayerNumber plyr_num);

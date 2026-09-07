@@ -1370,16 +1370,16 @@ static TbBool get_dungeon_control_action_inputs(void)
     {
         if ((ustate->primary_cursor_state == CSt_PickAxe) || (ustate->primary_cursor_state == CSt_PowerHand))
         {
-            process_highlight_roomspace_inputs(player->id_number);
+            process_highlight_roomspace_inputs();
         }
     }
     else if (ustate->work_state == PSt_BuildRoom)
     {
-        process_build_roomspace_inputs(player->id_number);
+        process_build_roomspace_inputs();
     }
     else if (ustate->work_state == PSt_Sell)
     {
-        process_sell_roomspace_inputs(player->id_number);
+        process_sell_roomspace_inputs();
     }
 
     // Zooming cannot be done paused because it's a player instance.

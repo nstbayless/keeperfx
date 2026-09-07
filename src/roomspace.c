@@ -1372,10 +1372,10 @@ void update_roomspaces()
     }
 }
 
-void process_build_roomspace_inputs(PlayerNumber plyr_idx)
+void process_build_roomspace_inputs()
 {
-    struct UserState* ustate = get_local_user_state(); // local input path
-    struct Packet* pckt = get_local_packet() /* local input path */;
+    struct UserState* ustate = get_local_user_state();
+    struct Packet* pckt = get_local_packet();
     if (room_role_matches(ustate->chosen_room_kind,RoRoF_PassLava|RoRoF_PassWater|RoRoF_PassAbyss))
     {
         TbBool drag_check = ( ( (is_game_key_pressed(Gkey_BestRoomSpace, false, true)) || (is_game_key_pressed(Gkey_SquareRoomSpace, false, true)) ) && (left_button_held));
@@ -1456,11 +1456,10 @@ void process_build_roomspace_inputs(PlayerNumber plyr_idx)
         }
 }
 
-void process_sell_roomspace_inputs(PlayerNumber plyr_idx)
+void process_sell_roomspace_inputs()
 {
-    struct PlayerInfo* player = get_player(plyr_idx);
-    struct UserState* ustate = get_player_user_state(player);
-    struct Packet* pckt = get_local_packet() /* local input path */;
+    struct UserState* ustate = get_local_user_state();
+    struct Packet* pckt = get_local_packet();
     if (is_game_key_pressed(Gkey_SellTrapOnSubtile, false, true))
     {
         set_packet_action(pckt, PckA_SetRoomspaceSubtile, 0, 0, 0, 0);
@@ -1507,11 +1506,11 @@ void process_sell_roomspace_inputs(PlayerNumber plyr_idx)
     }
 }
 
-void process_highlight_roomspace_inputs(PlayerNumber plyr_idx)
+void process_highlight_roomspace_inputs()
 {
     struct UserState* ustate = get_local_user_state(); // local input path
     unsigned long par2;
-    struct PlayerInfo* player = get_player(plyr_idx);
+    struct PlayerInfo* player = get_my_player();
     if ( (is_game_key_pressed(Gkey_BestRoomSpace, false, true)) ) // Use "modern" click and drag method
     {
         set_players_packet_action(player, PckA_SetRoomspaceHighlight, settings.highlight_mode ^ 1, settings.highlight_mode, 0, 0);
@@ -1544,7 +1543,6 @@ void process_highlight_roomspace_inputs(PlayerNumber plyr_idx)
     {
         if (ustate->primary_cursor_state == CSt_PowerHand)
         {
-            player = get_player(plyr_idx);
             if (ustate->roomspace_mode != single_subtile_mode)
             {
                 struct Packet* pckt = get_local_packet();

@@ -43,7 +43,7 @@ extern struct TbNetworkUserInfo net_user_info[MAX_NET_USERS];
 short setup_network_service(enum FrontendNetService service);
 int setup_old_network_service(void);
 TbBool init_players_network_game(void);
-void setup_count_players(void);
+void setup_count_human_players(void);
 void are_disconnect_victories_allowed(void);
 
 long network_session_join(void);

@@ -151,6 +151,14 @@ struct UserState *get_player_user_state(const struct PlayerInfo *player)
     return get_user_state(get_player_primary_user(player));
 }
 
+NetUserId get_player_local_or_primary_user(const struct PlayerInfo *player)
+{
+    if (is_my_player(player)) {
+        return get_local_user();
+    }
+    return get_player_primary_user(player);
+}
+
 struct UserState *get_local_user_state(void)
 {
     return get_user_state(get_local_user());

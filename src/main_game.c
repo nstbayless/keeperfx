@@ -365,7 +365,7 @@ void startup_network_game(CoroutineLoop *context, TbBool local)
     stop_streamed_samples();
     unsigned int flgmem;
     struct PlayerInfo *player;
-    setup_count_players();
+    setup_count_human_players();
     player = get_my_player();
     flgmem = player->is_active;
     if (local && (campaign.human_player >= 0) && (!force_player_num))
@@ -397,7 +397,7 @@ void startup_network_game(CoroutineLoop *context, TbBool local)
             return;
         }
     }
-    setup_count_players(); // It is reset by init_level
+    setup_count_human_players(); // It is reset by init_level
     int args[COROUTINE_ARGS] = {ShouldAssignCpuKeepers, 0};
     coroutine_add_args(context, &startup_network_game_tail, args);
 }

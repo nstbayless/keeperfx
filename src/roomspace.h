@@ -152,9 +152,9 @@ void keeper_build_roomspace(NetUserId user, struct RoomSpace *roomspace);
 
 void update_roomspaces();
 
-void process_build_roomspace_inputs(PlayerNumber plyr_idx);
-void process_sell_roomspace_inputs(PlayerNumber plyr_idx);
-void process_highlight_roomspace_inputs(PlayerNumber plyr_idx);
+void process_build_roomspace_inputs();
+void process_sell_roomspace_inputs();
+void process_highlight_roomspace_inputs();
 
 void reset_dungeon_build_room_ui_variables(NetUserId user);
 

@@ -596,7 +596,7 @@ void process_user_dungeon_control_packet_control(NetUserId user)
             save_settings();
         }
     }
-    if (is_my_player(player)) {
+    if (user == get_local_user()) {
         update_box_lag_compensation(player);
     }
     process_dungeon_control_packet_clicks(user);
@@ -669,7 +669,6 @@ TbBool process_user_global_packet_action(NetUserId user)
         frontend_save_continue_game(true);
         free_swipe_graphic();
       }
-      player->display_flags |= PlaF6_PlyrHasQuit;
       process_user_leave_game_packet(user);
       return 1;
   case PckA_UserDropped:
@@ -689,7 +688,6 @@ TbBool process_user_global_packet_action(NetUserId user)
         }
         else
         {
-          player->display_flags |= PlaF6_PlyrHasQuit;
           process_user_leave_game_packet(user);
         }
         return 1;

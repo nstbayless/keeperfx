@@ -58,6 +58,7 @@ void process_disconnected_network_players(void);
 void sync_initial_network_seed(void);
 TbBool network_is_host(void);
 PlayerNumber get_net_user_player_number(NetUserId user);
+TbBool net_parse_forced_players(const char* list);
 /******************************************************************************/
 #ifdef __cplusplus
 }

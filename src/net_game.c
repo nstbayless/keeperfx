@@ -70,8 +70,12 @@ struct StartupSyncPacket {
     uint32_t zoom_distance_setting;
     uint32_t frontview_zoom_distance_setting;
     uint8_t initial_input_lag_turns;
+    PlayerNumber user_players[MAX_NET_USERS]; // PLAYER_NONE = auto-assign
 };
 #pragma pack()
+
+// from the "-human" cli arg; user -> player + 1, 0 = unforced
+static uint8_t force_user_player_numbers[MAX_NET_USERS];
 
 short setup_network_service(enum FrontendNetService service)
 {
@@ -116,6 +120,38 @@ PlayerNumber get_net_user_player_number(NetUserId user)
         return PLAYER_NONE;
     }
     return game.user_states[user].player_id;
+}
+
+// return false if not a list.
+TbBool net_parse_forced_players(const char* list)
+{
+    memset(force_user_player_numbers, 0, sizeof(force_user_player_numbers));
+    
+    NetUserId user = 0;
+    for (const char* p = list; *p && user < MAX_NET_USERS;)
+    {
+        char* end;
+        int slot = strtol(p, &end, 10);
+        if (end == p) break;
+        
+        if (slot < 0)
+        {
+            force_user_player_numbers[user] = 0;
+        }
+        else if (slot < PLAYERS_COUNT)
+        {
+            force_user_player_numbers[user] = slot + 1;
+        }
+        else
+        {
+            WARNLOG("out-of-range player slot %d for user %d", slot, (int)user);
+        }
+        
+        ++user;
+        p = (*end == ',') ? end + 1 : end;
+    }
+    
+    return (strchr(list, ',') != NULL);
 }
 
 static void setup_players_from_startup_packets(const struct StartupSyncPacket startup_sync_packets[MAX_NET_USERS])
@@ -254,6 +290,72 @@ static void build_local_startup_sync(void)
     s_local_startup_sync.zoom_distance_setting = zoom_distance_setting;
     s_local_startup_sync.frontview_zoom_distance_setting = frontview_zoom_distance_setting;
     s_local_startup_sync.initial_input_lag_turns = calculate_initial_input_lag();
+    for (size_t i = 0; i < MAX_NET_USERS; ++i)
+    {
+        uint8_t forced = force_user_player_numbers[i];
+        s_local_startup_sync.user_players[i] =
+            (forced >= 1 && forced <= PLAYERS_COUNT)
+                ? (PlayerNumber)(forced - 1)
+                : PLAYER_NONE;
+    }
+}
+
+static void setup_network_player_numbers(const PlayerNumber force[MAX_NET_USERS])
+{
+    SYNCDBG(6, "Starting");
+    announced_dropped_users = 0;
+    TbBool slot_in_use[PLAYERS_COUNT] = {false};
+    for (NetUserId i = 0; i < MAX_NET_USERS; i++)
+    {
+        game.user_states[i].player_id = PLAYER_NONE;
+        if (net_user_info[i].network_user_active)
+        {
+            PlayerNumber slot = force[i];
+            if (slot >= 0 && slot < PLAYERS_COUNT)
+            {
+                game.user_states[i].player_id = slot;
+                slot_in_use[slot] = true;
+            }
+        }
+    }
+    for (NetUserId i = 0; i < MAX_NET_USERS; i++)
+    {
+        if (net_user_info[i].network_user_active && game.user_states[i].player_id == PLAYER_NONE)
+        {
+            for (PlayerNumber j = PLAYER0; j <= PLAYER3; ++j)
+            {
+                if (!slot_in_use[j])
+                {
+                    slot_in_use[j] = true;
+                    game.user_states[i].player_id = j;
+                    break;
+                }
+            }
+            if (game.user_states[i].player_id == PLAYER_NONE)
+            {
+                game.user_states[i].player_id = PLAYER0;
+            }
+        }
+    }
+    for (NetUserId i = 0; i < MAX_NET_USERS; ++i)
+    {
+        if (net_user_info[i].network_user_active) {
+            NETLOG("Network user %d%s -> player %d",
+                (int)i,
+                i == get_local_user() ? " (local)" : "",
+                (int)game.user_states[i].player_id
+            );
+        }
+    }
+    PlayerNumber local_player = get_net_user_player_number(get_local_user());
+    if (local_player < 0)
+    {
+        ERRORLOG("Local user %d not found among active network players", get_local_user());
+    }
+    else
+    {
+        my_player_number = local_player;
+    }
 }
 
 static TbBool net_startup_sync_exchange_and_apply(void)
@@ -286,33 +388,9 @@ static TbBool net_startup_sync_exchange_and_apply(void)
     NETLOG("Startup input lag: %d", game.input_lag_turns);
     zoom_distance_setting = host_sync->zoom_distance_setting;
     frontview_zoom_distance_setting = host_sync->frontview_zoom_distance_setting;
+    setup_network_player_numbers(host_sync->user_players);
     setup_players_from_startup_packets(s_startup_sync_packets);
     return true;
-}
-
-static void setup_network_player_numbers(void)
-{
-    TbBool is_set = false;
-    int k = 0;
-    SYNCDBG(6, "Starting");
-    announced_dropped_users = 0;
-    for (NetUserId i = 0; i < MAX_NET_USERS; i++)
-    {
-        game.user_states[i].player_id = PLAYER_NONE;
-        if (net_user_info[i].network_user_active)
-        {
-            game.user_states[i].player_id = k;
-            if ((!is_set) && (my_player_number == i))
-            {
-                is_set = true;
-                my_player_number = k;
-            }
-            k++;
-        }
-    }
-    if (!is_set) {
-        ERRORLOG("Local player number %d not found among active network players", my_player_number);
-    }
 }
 
 void setup_count_players(void)
@@ -335,7 +413,6 @@ TbBool init_players_network_game(void)
 {
     SYNCDBG(4,"Starting");
     TbBool initialized = true;
-    setup_network_player_numbers();
     for (int zip_idx = 0; zip_idx < REQUIRED_SPRITE_ZIP_COUNT; zip_idx++) {
         if (required_sprite_zip_checksums[zip_idx] != 0) {
             continue;

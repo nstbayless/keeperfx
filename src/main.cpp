@@ -1823,8 +1823,19 @@ static short process_command_line(unsigned short argc, char *argv[])
       if (strcasecmp(parstr, "human") == 0)
       {
           narg++;
+          
+          // try comma-separated first (multi-user player assignments)
+          net_parse_forced_players(pr2str);
+          
           default_loc_player = atoi(pr2str);
-          force_player_num = true;
+          if (default_loc_player >= 0)
+          {
+              force_player_num = true;
+          }
+          else
+          {
+              default_loc_player = 0;
+          }
       } else
       if (strcasecmp(parstr, "vidsmooth") == 0)
       {

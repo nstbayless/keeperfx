@@ -205,7 +205,7 @@ TbBool process_dungeon_control_packet_spell_overcharge(NetUserId user)
     struct UserState* ustate = get_user_state(user);
     const PlayerNumber plyr_idx = player->id_number;
     struct Dungeon* dungeon = get_players_dungeon(player);
-    SYNCDBG(6,"Starting for player %d state %s",(int)plyr_idx,player_state_code_name(player->work_state));
+    SYNCDBG(6,"Starting for player %d state %s",(int)plyr_idx,player_state_code_name(ustate->work_state));
     struct Packet* pckt = get_packet(user);
 
     while (game.conf.rules[plyr_idx].magic.allow_instant_charge_up && (pckt->additional_packet_values & PCAdV_SpeedupPressed))
@@ -384,6 +384,7 @@ void process_pause_packet(long curr_pause, long new_pause)
 
 void process_camera_controls(struct Camera* cam, const struct Packet* pckt, struct PlayerInfo* player)
 {
+    struct UserState* ustate = get_player_user_state(player);
     if (cam == NULL) {
         return;
     }
@@ -396,7 +397,7 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
     {
     case PVM_IsoWibbleView:
     case PVM_IsoStraightView:
-        if (player->roomspace_drag_paint_mode == 1)
+        if (ustate->roomspace_drag_paint_mode == 1)
         {
             if (scroll_speed < 4100)
             {
@@ -406,7 +407,7 @@ void process_camera_controls(struct Camera* cam, const struct Packet* pckt, stru
         inter_val = 2560000 / scroll_speed;
         break;
     case PVM_FrontView:
-        if (player->roomspace_drag_paint_mode == 1)
+        if (ustate->roomspace_drag_paint_mode == 1)
         {
             if (scroll_speed < 16384)
             {
@@ -571,7 +572,7 @@ void process_user_dungeon_control_packet_control(NetUserId user)
     struct PlayerInfo* player = get_player(plyr_idx);
     struct Packet* pckt = get_packet(user);
     SYNCDBG(6,"Processing player %d action %d",(int)plyr_idx,(int)pckt->action);
-    struct Camera* cam = get_player_active_camera(player);
+    struct Camera* cam = get_user_active_camera(user);
     if (cam == NULL) {
         ERRORLOG("No active camera");
         return;
@@ -657,7 +658,7 @@ TbBool process_user_global_packet_action(NetUserId user)
   struct Thing *thing;
   int i;
 
-  process_camera_action(player->cameras, pckt);
+  process_camera_action(ustate->cameras, pckt);
 
   switch (pckt->action)
   {
@@ -791,10 +792,10 @@ TbBool process_user_global_packet_action(NetUserId user)
       }
       return 0;
   case PckA_SetPlyrState:
-      set_player_state(player, pckt->actn_par1, pckt->actn_par2);
+      set_user_work_state(user, pckt->actn_par1, pckt->actn_par2);
       return 0;
   case PckA_SwitchView:
-      set_engine_view(player, pckt->actn_par1);
+      set_user_engine_view(user, pckt->actn_par1);
       return 0;
   case PckA_ToggleTendency:
       toggle_creature_tendencies(player, pckt->actn_par1);
@@ -814,7 +815,7 @@ TbBool process_user_global_packet_action(NetUserId user)
       //TODO: remake from beta
       return 0;
   case PckA_SetViewType:
-      set_player_mode(player, pckt->actn_par1);
+      set_user_view_type(user, pckt->actn_par1);
       return 0;
   case PckA_ZoomFromMap:
       if (network_is_active()
@@ -822,17 +823,17 @@ TbBool process_user_global_packet_action(NetUserId user)
       {
         if (get_local_user() == user)
           toggle_status_menu((game.operation_flags & GOF_ShowPanel) != 0);
-        set_player_mode(player, PVT_DungeonTop);
+        set_user_view_type(user, PVT_DungeonTop);
       } else
       {
-        set_player_mode(player, PVT_MapFadeOut);
+        set_user_view_type(user, PVT_MapFadeOut);
       }
       return 0;
   case PckA_UpdatePause:
       process_pause_packet(pckt->actn_par1, pckt->actn_par2);
       return 1;
   case PckA_ZoomToEvent:
-      if (player->work_state == PSt_CreatrInfo)
+      if (ustate->work_state == PSt_CreatrInfo)
         turn_off_query(plyr_idx);
       event_move_player_towards_event(player, pckt->actn_par1);
       return 0;
@@ -841,14 +842,14 @@ TbBool process_user_global_packet_action(NetUserId user)
       if (player->instance_num == PI_ZoomToPos) {
           return 0;
       }
-      if (player->work_state == PSt_CreatrInfo)
+      if (ustate->work_state == PSt_CreatrInfo)
           turn_off_query(plyr_idx);
       struct Room* room = room_get(pckt->actn_par1);
       player->zoom_to_pos_x = subtile_coord_center(room->central_stl_x);
       player->zoom_to_pos_y = subtile_coord_center(room->central_stl_y);
       set_player_instance(player, PI_ZoomToPos, 0);
-      if (player->work_state == PSt_BuildRoom) {
-          set_player_state(player, PSt_BuildRoom, room->kind);
+      if (ustate->work_state == PSt_BuildRoom) {
+          set_user_work_state(user, PSt_BuildRoom, room->kind);
       }
       return 0;
   }
@@ -856,35 +857,35 @@ TbBool process_user_global_packet_action(NetUserId user)
       if (player->instance_num == PI_ZoomToPos) {
           return 0;
       }
-      if (player->work_state == PSt_CreatrInfo)
+      if (ustate->work_state == PSt_CreatrInfo)
         turn_off_query(plyr_idx);
       thing = thing_get(pckt->actn_par1);
       player->zoom_to_pos_x = thing->mappos.x.val;
       player->zoom_to_pos_y = thing->mappos.y.val;
       set_player_instance(player, PI_ZoomToPos, 0);
-      if ((player->work_state == PSt_PlaceTrap) || (player->work_state == PSt_PlaceDoor)) {
-          set_player_state(player, PSt_PlaceTrap, thing->model);
+      if ((ustate->work_state == PSt_PlaceTrap) || (ustate->work_state == PSt_PlaceDoor)) {
+          set_user_work_state(user, PSt_PlaceTrap, thing->model);
       }
       return 0;
   case PckA_ZoomToDoor:
       if (player->instance_num == PI_ZoomToPos) {
           return 0;
       }
-      if (player->work_state == PSt_CreatrInfo)
+      if (ustate->work_state == PSt_CreatrInfo)
         turn_off_query(plyr_idx);
       thing = thing_get(pckt->actn_par1);
       player->zoom_to_pos_x = thing->mappos.x.val;
       player->zoom_to_pos_y = thing->mappos.y.val;
       set_player_instance(player, PI_ZoomToPos, 0);
-      if ((player->work_state == PSt_PlaceTrap) || (player->work_state == PSt_PlaceDoor)) {
-          set_player_state(player, PSt_PlaceDoor, thing->model);
+      if ((ustate->work_state == PSt_PlaceTrap) || (ustate->work_state == PSt_PlaceDoor)) {
+          set_user_work_state(user, PSt_PlaceDoor, thing->model);
       }
       return 0;
   case PckA_ZoomToPosition:
       if (player->instance_num == PI_ZoomToPos) {
           return 0;
       }
-      if (player->work_state == PSt_CreatrInfo)
+      if (ustate->work_state == PSt_CreatrInfo)
         turn_off_query(plyr_idx);
       player->zoom_to_pos_x = pckt->actn_par1;
       player->zoom_to_pos_y = pckt->actn_par2;
@@ -928,12 +929,12 @@ TbBool process_user_global_packet_action(NetUserId user)
       turn_off_query(plyr_idx);
       return 0;
   case PckA_ZoomToBattle:
-      if (player->work_state == PSt_CreatrInfo)
+      if (ustate->work_state == PSt_CreatrInfo)
         turn_off_query(plyr_idx);
       battle_move_player_towards_battle(player, pckt->actn_par1);
       return 0;
   case PckA_ZoomToSpell:
-      if (player->work_state == PSt_CreatrInfo)
+      if (ustate->work_state == PSt_CreatrInfo)
         turn_off_query(plyr_idx);
       {
           struct Coord3d locpos;
@@ -948,9 +949,9 @@ TbBool process_user_global_packet_action(NetUserId user)
       {
           const struct PowerConfigStats *powerst;
           powerst = get_power_model_stats(pckt->actn_par1);
-          i = get_power_index_for_work_state(player->work_state);
+          i = get_power_index_for_work_state(ustate->work_state);
           if (i > 0)
-            set_player_state(player, powerst->work_state, pckt->actn_par1);
+            set_user_work_state(user, powerst->work_state, pckt->actn_par1);
       }
       return 0;
   case PckA_PlyrFastMsg:
@@ -991,14 +992,14 @@ TbBool process_user_global_packet_action(NetUserId user)
       return false;
   case PckA_SaveViewType:
     {
-            struct Camera* camera = get_player_active_camera(player);
-            if (camera != NULL && player->view_type != pckt->actn_par1)
-                player->view_mode_restore = camera->view_mode;
-      set_player_mode(player, pckt->actn_par1);
+            struct Camera* camera = get_user_active_camera(user);
+            if (camera != NULL && ustate->view_type != pckt->actn_par1)
+                ustate->view_mode_restore = camera->view_mode;
+      set_user_view_type(user, pckt->actn_par1);
       return false;
     }
   case PckA_LoadViewType:
-      set_player_mode(player, pckt->actn_par1);
+      set_user_view_type(user, pckt->actn_par1);
       return false;
     case PckA_SetRoomspaceAuto:
     case PckA_SetRoomspaceMan:
@@ -1026,11 +1027,11 @@ TbBool process_user_global_packet_action(NetUserId user)
     case PckA_ApplyRoomspaceDigTag:
     case PckA_SetRoomspaceHighlight:
     {
-        player->roomspace_mode = pckt->actn_par1;
+        ustate->roomspace_mode = pckt->actn_par1;
         if ( (pckt->actn_par2 == 1) || (pckt->actn_par1 == roomspace_detection_mode) )
         {
             // exit out of click and drag mode
-            if (player->render_roomspace.drag_mode)
+            if (ustate->render_roomspace.drag_mode)
             {
                 ustate->cursor_button_down = 0;
                 ustate->one_click_lock_cursor = false;
@@ -1039,33 +1040,33 @@ TbBool process_user_global_packet_action(NetUserId user)
                     ustate->ignore_next_PCtr_LBtnRelease = true;
                 }
             }
-            player->render_roomspace.drag_mode = false;
+            ustate->render_roomspace.drag_mode = false;
         }
-        player->roomspace_highlight_mode = pckt->actn_par1;
+        ustate->roomspace_highlight_mode = pckt->actn_par1;
         switch (pckt->actn_par1)
         {
             case box_placement_mode:
             {
-                reset_dungeon_build_room_ui_variables(plyr_idx);
-                player->roomspace_width = player->roomspace_height = pckt->actn_par2;
+                reset_dungeon_build_room_ui_variables(user);
+                ustate->roomspace_width = ustate->roomspace_height = pckt->actn_par2;
                 break;
             }
             case roomspace_detection_mode:
             {
-                set_player_roomspace_size(player, pckt->actn_par2);
+                set_user_roomspace_size(user, pckt->actn_par2);
                 break;
             }
             case drag_placement_mode: // drag
             {
                 if (pckt->actn_par2 == 1)
                 {
-                    player->roomspace_width = 1;
-                    player->roomspace_height = 1;
+                    ustate->roomspace_width = 1;
+                    ustate->roomspace_height = 1;
                 }
                 break;
             }
         }
-        player->roomspace_no_default = true;
+        ustate->roomspace_no_default = true;
         return false;
     }
     case PckA_PlyrQueryCreature:
@@ -1080,14 +1081,13 @@ TbBool process_user_global_packet_action(NetUserId user)
 
 void process_user_map_packet_control(NetUserId user)
 {
-    const PlayerNumber plyr_idx = get_net_user_player_number(user);
+    struct UserState* ustate = get_user_state(user);
     SYNCDBG(6,"Starting");
-    struct PlayerInfo* player = get_player(plyr_idx);
     struct Packet* pckt = get_packet(user);
     // Get map coordinates
     process_map_packet_clicks(user);
-    player->cameras[CamIV_Parchment].mappos.x.val = pckt->pos_x;
-    player->cameras[CamIV_Parchment].mappos.y.val = pckt->pos_y;
+    ustate->cameras[CamIV_Parchment].mappos.x.val = pckt->pos_x;
+    ustate->cameras[CamIV_Parchment].mappos.y.val = pckt->pos_y;
     update_mouse_light(user);
     SYNCDBG(8,"Finished");
 }
@@ -1110,7 +1110,6 @@ void process_map_packet_clicks(NetUserId user)
  */
 void process_user_packet(NetUserId user)
 {
-    struct PlayerInfo* player = get_player(get_net_user_player_number(user));
     struct Packet* pckt = get_packet(user);
     if (is_packet_empty(pckt))
     {
@@ -1127,7 +1126,7 @@ void process_user_packet(NetUserId user)
       // Different changes to the game are possible for different views.
       // For each there can be a control change (which is view change or mouse event not translated to action),
       // and action perform (which does specific action set in packet).
-      switch (player->view_type)
+      switch (ustate->view_type)
       {
           case PVT_DungeonTop:
             process_user_dungeon_control_packet_control(user);

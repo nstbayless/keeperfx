@@ -509,7 +509,7 @@ static bool players_cursor_is_at_top_of_view()
 {
     const struct PlayerInfo *const player = get_my_player();
     const struct UserState *const ustate = get_local_user_state();
-    switch (player->work_state)
+    switch (ustate->work_state)
     {
     case PSt_BuildRoom:
     case PSt_PlaceDoor:
@@ -704,8 +704,9 @@ void toggle_hero_health_flowers(void)
 
 void reset_gui_based_on_player_mode(void)
 {
+    struct UserState* ustate = get_local_user_state();
     struct PlayerInfo *player = get_my_player();
-    if (player->view_type == PVT_CreatureContrl)
+    if (ustate->view_type == PVT_CreatureContrl)
     {
         turn_on_menu(vid_change_query_menu);
         if (player->victory_state == VicS_LostLevel)
@@ -713,7 +714,7 @@ void reset_gui_based_on_player_mode(void)
             turn_off_query_menus();
         }
     }
-    else if (player->view_type == PVT_CreaturePasngr)
+    else if (ustate->view_type == PVT_CreaturePasngr)
     {
         turn_on_menu(vid_change_query_menu);
         turn_off_query_menus();
@@ -724,7 +725,7 @@ void reset_gui_based_on_player_mode(void)
         if (game.active_panel_mnu_idx > 0)
         {
             initialise_tab_tags(game.active_panel_mnu_idx);
-            if ( (player->work_state == PSt_CreatrInfo) || (player->work_state == PSt_CreatrInfoAll) )
+            if ( (ustate->work_state == PSt_CreatrInfo) || (ustate->work_state == PSt_CreatrInfoAll) )
             {
                 turn_on_menu(vid_change_query_menu);
             }
@@ -883,12 +884,19 @@ void reinit_level_after_load(void)
     reinit_packets_after_load();
     game.easter_eggs_enabled = start_params.easter_egg;
     parchment_loaded = 0;
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++)
+    {
+        PlayerNumber plyr_idx = get_net_user_player_number(user);
+        if ((plyr_idx >= 0) && player_exists(get_player(plyr_idx)))
+        {
+            set_user_engine_view(user, get_user_state(user)->view_mode);
+        }
+    }
     for (i=0; i < PLAYERS_COUNT; i++)
     {
         player = get_player(i);
         if (player_exists(player))
         {
-            set_engine_view(player, player->view_mode);
             update_panel_color_player_color(player->id_number, get_dungeon(i)->color_idx);
         }
     }
@@ -995,7 +1003,6 @@ void clear_players_for_save(void)
     unsigned short saved_player_id;
     unsigned short saved_is_active;
     unsigned short saved_allocation_flags;
-    struct Camera cammem;
     int i;
     for (i=0; i < PLAYERS_COUNT; i++)
     {
@@ -1003,15 +1010,16 @@ void clear_players_for_save(void)
       saved_player_id = player->id_number;
       saved_is_active = player->is_active;
       saved_allocation_flags = player->allocflags;
-      memcpy(&cammem,&player->cameras[CamIV_FirstPerson],sizeof(struct Camera));
+      // Cameras live in the user state, which this reset leaves alone.
       memset(player, 0, sizeof(struct PlayerInfo));
       player->id_number = saved_player_id;
       player->user_id = -1;
       player->is_active = saved_is_active;
       set_flag_value(player->allocflags, PlaF_Allocated, ((saved_allocation_flags & PlaF_Allocated) != 0));
       set_flag_value(player->allocflags, PlaF_CompCtrl, ((saved_allocation_flags & PlaF_CompCtrl) != 0));
-      memcpy(&player->cameras[CamIV_FirstPerson],&cammem,sizeof(struct Camera));
-      set_player_active_camera(player, CamIV_FirstPerson);
+      NetUserId user = get_player_primary_user(player);
+      if (user >= 0)
+        set_user_active_camera(user, CamIV_FirstPerson);
     }
 }
 
@@ -1218,7 +1226,7 @@ void level_lost_go_first_person(PlayerNumber plyr_idx)
         return;
     }
     spectator_breed = get_players_spectator_model(plyr_idx);
-    player->dungeon_camera_zoom = get_camera_zoom(get_player_active_camera(player));
+    get_player_user_state(player)->dungeon_camera_zoom = get_camera_zoom(get_player_active_camera(player));
     struct CompoundTngFilterParam param = {};
     param.class_id = TCls_Creature;
     struct Thing *spawn_creatng = get_random_thing_of_class_with_filter(filter_creatures_owned_by_keepers, &param, plyr_idx);

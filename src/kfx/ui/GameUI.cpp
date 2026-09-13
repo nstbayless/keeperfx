@@ -33,9 +33,10 @@ bool GameUI::IsActiveForCurrentView(const struct PlayerInfo* player) const
 {
     if (!player)
         return false;
-    if (player->view_type == PVT_MapScreen
-        || player->view_type == PVT_MapFadeIn
-        || player->view_type == PVT_MapFadeOut)
+    const struct UserState* ustate = get_player_user_state(player);
+    if (ustate->view_type == PVT_MapScreen
+        || ustate->view_type == PVT_MapFadeIn
+        || ustate->view_type == PVT_MapFadeOut)
         return false;
     return true;
 }

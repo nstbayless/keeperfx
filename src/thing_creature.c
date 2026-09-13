@@ -234,10 +234,11 @@ long check_for_first_person_barrack_party(struct Thing *grthing)
 
 TbBool control_creature_as_controller(struct PlayerInfo *player, struct Thing *thing)
 {
+    struct UserState* ustate = get_player_user_state(player);
     struct CreatureModelConfig *crconf;
     struct Camera *cam;
     struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
-    if (((thing->owner != player->id_number) && (player->work_state != PSt_FreeCtrlDirect))
+    if (((thing->owner != player->id_number) && (ustate->work_state != PSt_FreeCtrlDirect))
       || !thing_can_be_controlled_as_controller(thing))
     {
       if (!control_creature_as_passenger(player, thing))
@@ -262,7 +263,7 @@ TbBool control_creature_as_controller(struct PlayerInfo *player, struct Thing *t
     set_selected_creature(player, thing);
         cam = get_player_active_camera(player);
     if (cam != NULL)
-      player->view_mode_restore = cam->view_mode;
+      ustate->view_mode_restore = cam->view_mode;
     thing->alloc_flags |= TAlF_IsControlled;
     thing->rendering_flags |= TRF_Invisible;
     if (!chicken)
@@ -273,7 +274,7 @@ TbBool control_creature_as_controller(struct PlayerInfo *player, struct Thing *t
     {
         internal_set_thing_state(thing, CrSt_CreaturePretendChickenSetupMove);
     }
-    set_player_mode(player, PVT_CreatureContrl);
+    set_user_view_type(get_player_primary_user(player), PVT_CreatureContrl);
     if (thing_is_creature(thing))
     {
         cctrl->max_speed = calculate_correct_creature_maxspeed(thing);
@@ -297,7 +298,8 @@ TbBool control_creature_as_controller(struct PlayerInfo *player, struct Thing *t
 
 TbBool control_creature_as_passenger(struct PlayerInfo *player, struct Thing *thing)
 {
-    if ((thing->owner != player->id_number) && (player->work_state != PSt_FreeCtrlPassngr))
+    struct UserState* ustate = get_player_user_state(player);
+    if ((thing->owner != player->id_number) && (ustate->work_state != PSt_FreeCtrlPassngr))
     {
         ERRORLOG("Player %d cannot control as passenger thing owned by player %d",(int)player->id_number,(int)thing->owner);
         return false;
@@ -316,8 +318,8 @@ TbBool control_creature_as_passenger(struct PlayerInfo *player, struct Thing *th
     set_selected_thing(player, thing);
         struct Camera* cam = get_player_active_camera(player);
     if (cam != NULL)
-      player->view_mode_restore = cam->view_mode;
-    set_player_mode(player, PVT_CreaturePasngr);
+      ustate->view_mode_restore = cam->view_mode;
+    set_user_view_type(get_player_primary_user(player), PVT_CreaturePasngr);
     thing->rendering_flags |= TRF_Invisible;
     return true;
 }
@@ -3327,11 +3329,12 @@ struct Thing* cause_creature_death(struct Thing *thing, CrDeathFlags flags)
 void prepare_to_controlled_creature_death(struct Thing *thing)
 {
     struct PlayerInfo* player = get_player(thing->owner);
+    struct UserState* ustate = get_player_user_state(player);
     leave_creature_as_controller(player, thing);
     player->influenced_thing_idx = 0;
     player->influenced_thing_creation = 0;
-    set_camera_zoom(get_player_active_camera(player), player->dungeon_camera_zoom);
-    sync_local_camera(player);
+    set_camera_zoom(get_player_active_camera(player), ustate->dungeon_camera_zoom);
+    sync_local_camera(get_player_primary_user(player));
     if (is_my_player(player)) {
         turn_off_all_window_menus();
         turn_off_query_menus();
@@ -7721,10 +7724,11 @@ void query_creature(struct PlayerInfo *player, ThingIndex index, TbBool reset, T
 
 TbBool creature_can_be_queried(struct PlayerInfo *player, struct Thing *creatng)
 {
+    struct UserState* ustate = get_player_user_state(player);
     if (creature_is_leaving_and_cannot_be_stopped(creatng))
         return false;
 
-    switch (player->work_state)
+    switch (ustate->work_state)
     {
         case PSt_CreatrInfo:
         case PSt_CreatrQuery:

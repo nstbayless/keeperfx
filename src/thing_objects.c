@@ -776,7 +776,7 @@ static long food_moves(struct Thing *objtng)
             dangle = 62;
         objtng->move_angle_xy = (objtng->move_angle_xy + dangle * sangle) & ANGLE_MASK;
         struct PlayerInfo* my_player = get_my_player();
-        if (my_player->controlled_thing_idx == objtng->index && my_player->view_mode == PVM_CreatureView) {
+        if (my_player->controlled_thing_idx == objtng->index && get_local_user_state()->view_mode == PVM_CreatureView) {
             set_local_camera_destination(my_player);
         }
         if (get_angle_difference(objtng->move_angle_xy, objtng->food.angle) < DEGREES_50)

@@ -159,7 +159,6 @@ struct PlayerInfo {
     unsigned char allocflags;
     unsigned char display_flags;
     NetUserId user_id; // -1 if no user
-    int32_t hand_animationId;
     unsigned int hand_busy_until_turn;
     char player_name[20];
     unsigned char victory_state;
@@ -169,31 +168,20 @@ struct PlayerInfo {
     TbBool is_active;
     short controlled_thing_idx;
     GameTurn controlled_thing_creatrn;
-    short thing_under_hand;
     TbBool possession_lock;
-    unsigned char view_mode;
-    unsigned char active_camera_idx;
-    struct Camera cameras[4];
     MapCoord zoom_to_pos_x;
     MapCoord zoom_to_pos_y;
     struct Wander wandr_within;
     struct Wander wandr_outside;
-    short hand_thing_idx;
     short cta_flag_idx;
     short influenced_thing_idx;
     GameTurn influenced_thing_creation;
-    unsigned char view_type;
-    PlayerState work_state;
-    PlayerState continue_work_state;
     char mp_message_text[PLAYER_MP_MESSAGE_LEN];
     char mp_pending_message[PLAYER_MP_MESSAGE_LEN];
     char mp_message_text_last[PLAYER_MP_MESSAGE_LEN];
     /** Player instance, from PlayerInstanceNum enum. */
     unsigned char instance_num;
     unsigned long instance_remain_turns;
-    /** If view mode is temporarily covered by another, the original mode which is to be restored later will be saved here.*/
-    char view_mode_restore;
-    int32_t dungeon_camera_zoom;
     /** Overcharge level while casting keeper powers. */
     int32_t cast_expand_level;
     MapCoordDelta zoom_to_movement_x;
@@ -204,18 +192,8 @@ struct PlayerInfo {
     uint32_t isometric_view_zoom_level;
     uint32_t frontview_zoom_level;
     unsigned char hand_idx;
-    struct RoomSpace render_roomspace;
+    /** Deferred build/sell in progress. Per player: the dungeon is what gets built. */
     struct RoomSpace roomspace;
-    unsigned char roomspace_mode;
-    int user_defined_roomspace_width;
-    int roomspace_detection_looseness;
-    int roomspace_width;
-    int roomspace_height;
-    unsigned char roomspace_highlight_mode;
-    TbBool roomspace_no_default;
-    TbBool roomspace_drag_paint_mode;
-    unsigned char roomspace_l_shape;
-    TbBool roomspace_horizontal_first;
     unsigned char player_type; //enum PlayerTypes
     ThingModel special_digger;
     unsigned short generate_speed;
@@ -265,6 +243,28 @@ struct UserState {
     ThingModel chosen_door_kind;
     PowerKind chosen_power_kind;
     TbBool pickup_all_gold;
+    PlayerState work_state;
+    PlayerState continue_work_state;
+    short thing_under_hand;
+    short hand_thing_idx;
+    int32_t hand_animationId;
+    unsigned char view_type;
+    unsigned char view_mode;
+    unsigned char active_camera_idx;
+    struct Camera cameras[4];
+    char view_mode_restore;
+    int32_t dungeon_camera_zoom;
+    struct RoomSpace render_roomspace;
+    unsigned char roomspace_mode;
+    int user_defined_roomspace_width;
+    int roomspace_detection_looseness;
+    int roomspace_width;
+    int roomspace_height;
+    unsigned char roomspace_highlight_mode;
+    TbBool roomspace_no_default;
+    TbBool roomspace_drag_paint_mode;
+    unsigned char roomspace_l_shape;
+    TbBool roomspace_horizontal_first;
 };
 
 /******************************************************************************/
@@ -336,14 +336,16 @@ TbBool player_is_roaming(PlayerNumber plyr_num);
 TbBool player_is_keeper(PlayerNumber plyr_num);
 TbBool player_is_neutral(PlayerNumber plyr_num);
 
-void set_player_state(struct PlayerInfo *player, short a1, int32_t a2);
-void set_player_mode(struct PlayerInfo *player, unsigned short nview);
-void reset_player_mode(struct PlayerInfo *player, unsigned short nview);
+void set_user_work_state(NetUserId user, short nwrk_state, int32_t chosen_kind);
+void set_user_view_type(NetUserId user, unsigned short nview);
+void reset_user_view_type(NetUserId user, unsigned short nview);
 
 void clear_players(void);
 
+struct Camera *get_user_active_camera(NetUserId user);
 struct Camera *get_player_active_camera(const struct PlayerInfo *player);
-void set_player_active_camera(struct PlayerInfo *player, unsigned char cam_idx);
+void set_user_active_camera(NetUserId user, unsigned char cam_idx);
+NetUserId get_player_primary_user(const struct PlayerInfo *player);
 unsigned char rotate_mode_to_view_mode(unsigned char mode);
 
 unsigned char get_player_color_idx(PlayerNumber plyr_idx);

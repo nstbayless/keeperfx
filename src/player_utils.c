@@ -141,6 +141,7 @@ void set_player_as_won_level(struct PlayerInfo *player)
 
 void set_player_as_lost_level(struct PlayerInfo *player)
 {
+    struct UserState* ustate = get_player_user_state(player);
     if (player->victory_state != VicS_Undecided)
     {
         // Suppress redundant warnings
@@ -181,12 +182,12 @@ void set_player_as_lost_level(struct PlayerInfo *player)
     }
     if (is_my_player(player))
         gui_set_button_flashing(0, 0);
-    if (player->view_type == PVT_CreatureContrl)
+    if (ustate->view_type == PVT_CreatureContrl)
     {
         struct Thing *thing = thing_get(player->controlled_thing_idx);
         leave_creature_as_controller(player, thing);
     }
-    else if (player->view_type == PVT_CreaturePasngr)
+    else if (ustate->view_type == PVT_CreaturePasngr)
     {
         struct Thing *thing = thing_get(player->controlled_thing_idx);
         leave_creature_as_passenger(player, thing);
@@ -195,10 +196,16 @@ void set_player_as_lost_level(struct PlayerInfo *player)
     {
         if (!flag_is_set(player->allocflags, PlaF_CompCtrl))
         {
-            set_player_mode(player, PVT_DungeonTop);
+            for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+                if (get_net_user_player_number(user) == player->id_number)
+                    set_user_view_type(user, PVT_DungeonTop);
+            }
         }
     }
-    set_player_state(player, PSt_CtrlDungeon, 0);
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        if (get_net_user_player_number(user) == player->id_number)
+            set_user_work_state(user, PSt_CtrlDungeon, 0);
+    }
     if (!network_is_active())
         player->display_objective_turn = get_gameturn() + 300;
     if (network_is_active())
@@ -796,6 +803,7 @@ void init_user_state(NetUserId user)
 
 void init_player(struct PlayerInfo *player, short no_explore)
 {
+    struct UserState* ustate = get_player_user_state(player);
     SYNCDBG(5,"Starting");
     if (is_my_player(player))
     {
@@ -805,8 +813,8 @@ void init_player(struct PlayerInfo *player, short no_explore)
         setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
         local_state.main_palette = engine_palette;
     }
-    player->continue_work_state = PSt_CtrlDungeon;
-    player->work_state = PSt_CtrlDungeon;
+    ustate->continue_work_state = PSt_CtrlDungeon;
+    ustate->work_state = PSt_CtrlDungeon;
     player->isometric_view_zoom_level = settings.isometric_view_zoom_level;
     player->frontview_zoom_level = settings.frontview_zoom_level;
     if (is_my_player(player))
@@ -815,23 +823,23 @@ void init_player(struct PlayerInfo *player, short no_explore)
         {
             settings.highlight_mode = default_tag_mode - 1;
         }
-        player->roomspace_highlight_mode = settings.highlight_mode;
-        player->roomspace_mode = settings.highlight_mode;
+        ustate->roomspace_highlight_mode = settings.highlight_mode;
+        ustate->roomspace_mode = settings.highlight_mode;
         set_flag(game.operation_flags, GOF_ShowPanel);
         set_gui_visible(true);
         init_gui();
         turn_on_menu(GMnu_MAIN);
         turn_on_menu(GMnu_ROOM);
     }
-    player->roomspace_width = 1;
-    player->roomspace_height = 1;
-    player->roomspace_detection_looseness = DEFAULT_USER_ROOMSPACE_DETECTION_LOOSENESS;
-    player->user_defined_roomspace_width = DEFAULT_USER_ROOMSPACE_WIDTH;
+    ustate->roomspace_width = 1;
+    ustate->roomspace_height = 1;
+    ustate->roomspace_detection_looseness = DEFAULT_USER_ROOMSPACE_DETECTION_LOOSENESS;
+    ustate->user_defined_roomspace_width = DEFAULT_USER_ROOMSPACE_WIDTH;
     switch (game.game_kind)
     {
     case GKind_LocalGame:
         init_player_start(player, false);
-        reset_player_mode(player, PVT_DungeonTop);
+        reset_user_view_type(get_player_primary_user(player), PVT_DungeonTop);
         if ( !no_explore ) {
           init_keeper_map_exploration_by_terrain(player);
           init_keeper_map_exploration_by_creatures(player);
@@ -855,7 +863,7 @@ void init_player(struct PlayerInfo *player, short no_explore)
           break;
         }
         init_player_start(player, false);
-        reset_player_mode(player, PVT_DungeonTop);
+        reset_user_view_type(get_player_primary_user(player), PVT_DungeonTop);
         init_keeper_map_exploration_by_terrain(player);
         init_keeper_map_exploration_by_creatures(player);
         break;
@@ -863,7 +871,7 @@ void init_player(struct PlayerInfo *player, short no_explore)
         ERRORLOG("How do I set up this player?");
         break;
     }
-    init_player_cameras(player);
+    init_user_cameras(get_player_primary_user(player));
     player->mp_message_text[0] = '\0';
     // By default, player is his own ally
     player->allied_players = to_flag(player->id_number);
@@ -1122,11 +1130,13 @@ void post_init_players(void)
 
 void init_players_local_game(void)
 {
+    struct UserState* ustate = get_local_user_state();
     SYNCDBG(4,"Starting");
     struct PlayerInfo* player = get_my_player();
     player->id_number = my_player_number;
     player->user_id = SOLO_HUMAN_ID;
     player->allocflags |= PlaF_Allocated;
+    init_user_state(player->user_id);
 
     if( player->id_number == PLAYER_GOOD)
     {
@@ -1135,13 +1145,12 @@ void init_players_local_game(void)
     }
 
     switch (settings.video_rotate_mode) {
-        case 0: player->view_mode_restore = PVM_IsoWibbleView; break;
-        case 1: player->view_mode_restore = PVM_IsoStraightView; break;
-        case 2: player->view_mode_restore = PVM_FrontView; break;
-        default: player->view_mode_restore = PVM_IsoWibbleView; break;
+        case 0: ustate->view_mode_restore = PVM_IsoWibbleView; break;
+        case 1: ustate->view_mode_restore = PVM_IsoStraightView; break;
+        case 2: ustate->view_mode_restore = PVM_FrontView; break;
+        default: ustate->view_mode_restore = PVM_IsoWibbleView; break;
     }
     init_player(player, 0);
-    init_user_state(player->user_id);
     set_creature_tendencies(player, CrTend_Imprison, IMPRISON_BUTTON_DEFAULT);
     set_creature_tendencies(player, CrTend_Flee, FLEE_BUTTON_DEFAULT);
     game.creatures_tend_imprison = IMPRISON_BUTTON_DEFAULT;
@@ -1154,9 +1163,10 @@ void process_player_states(void)
     for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++)
     {
         struct PlayerInfo* player = get_player(plyr_idx);
+        struct UserState* ustate = get_player_user_state(player);
         if (player_exists(player) && ((player->allocflags & PlaF_CompCtrl) == 0))
         {
-            if ( (player->work_state == PSt_CreatrInfo) || (player->work_state == PSt_CreatrInfoAll) )
+            if ( (ustate->work_state == PSt_CreatrInfo) || (ustate->work_state == PSt_CreatrInfoAll) )
             {
                 struct Thing* thing = thing_get(player->controlled_thing_idx);
                 struct Camera* cam = get_player_active_camera(player);
@@ -1365,10 +1375,11 @@ void set_player_colour(PlayerNumber plyr_idx, unsigned char colour_idx)
     }
 }
 
-void set_player_roomspace_size(struct PlayerInfo *player, long size) {
-    player->user_defined_roomspace_width = size;
-    player->roomspace_width = size;
-    player->roomspace_height = size;
+void set_user_roomspace_size(NetUserId user, long size) {
+    struct UserState* ustate = get_user_state(user);
+    ustate->user_defined_roomspace_width = size;
+    ustate->roomspace_width = size;
+    ustate->roomspace_height = size;
 }
 
 /******************************************************************************/

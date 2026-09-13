@@ -138,18 +138,19 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
             continue;
         }
         struct PlayerInfo *player = get_player(k);
+        struct UserState* ustate = get_user_state(i);
         player->id_number = k;
         player->user_id = i;
         player->allocflags |= PlaF_Allocated;
+        init_user_state(i);
         switch (sync->video_rotate_mode) {
-            case 0: player->view_mode_restore = PVM_IsoWibbleView; break;
-            case 1: player->view_mode_restore = PVM_IsoStraightView; break;
-            case 2: player->view_mode_restore = PVM_FrontView; break;
-            default: player->view_mode_restore = PVM_IsoWibbleView; break;
+            case 0: ustate->view_mode_restore = PVM_IsoWibbleView; break;
+            case 1: ustate->view_mode_restore = PVM_IsoStraightView; break;
+            case 2: ustate->view_mode_restore = PVM_FrontView; break;
+            default: ustate->view_mode_restore = PVM_IsoWibbleView; break;
         }
         player->is_active = 1;
         init_player(player, 0);
-        init_user_state(player->user_id);
         player->isometric_view_zoom_level = sync->isometric_view_zoom_level;
         player->frontview_zoom_level = sync->frontview_zoom_level;
         TbBool imprison = (sync->initial_tendencies & CrTend_Imprison) != 0;

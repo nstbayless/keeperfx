@@ -125,6 +125,7 @@ static void ensure_map_fade_buffers(int width, int height)
 /******************************************************************************/
 static void draw_creature_view_icons(struct Thing* creatng)
 {
+    struct UserState* ustate = get_local_user_state();
     struct GuiMenu *gmnu = get_active_menu(menu_id_to_number(GMnu_MAIN));
     ScreenCoord x = gmnu->width + scale_value_by_horizontal_resolution(5);
     ScreenCoord y;
@@ -219,8 +220,7 @@ static void draw_creature_view_icons(struct Thing* creatng)
     }
     else
     {
-        struct PlayerInfo* player = get_my_player();
-        if (player->view_type == PVT_CreatureContrl)
+        if (ustate->view_type == PVT_CreatureContrl)
         {
             if (!creature_instance_is_available(creatng, cctrl->active_instance_id))
             {
@@ -421,9 +421,9 @@ void generate_map_fade_ghost_table(const char *fname, unsigned char *palette, un
  */
 void prepare_map_fade_buffers(unsigned char *fade_src, unsigned char *fade_dest, int scanline, int height)
 {
-    struct PlayerInfo* player = get_my_player();
+    struct UserState* ustate = get_local_user_state();
     // render the 3D screen
-    if (player->view_mode_restore == PVM_IsoWibbleView || player->view_mode_restore == PVM_IsoStraightView)
+    if (ustate->view_mode_restore == PVM_IsoWibbleView || ustate->view_mode_restore == PVM_IsoStraightView)
       redraw_isometric_view();
     else
       redraw_frontview();
@@ -533,14 +533,16 @@ long dummy_sound_line_of_sight(long a1, long a2, long a3, long a4, long a5, long
     return 1;
 }
 
-void set_engine_view(struct PlayerInfo *player, long val)
+void set_user_engine_view(NetUserId user, long val)
 {
+    struct UserState *ustate = get_user_state(user);
+    const TbBool is_local = (user == get_local_user());
     switch ( val )
     {
     case PVM_EmptyView:
-        set_player_active_camera(player, CamIV_Isometric);
+        set_user_active_camera(user, CamIV_Isometric);
         // Allow view mode 0 only for non-local-human players
-        if (!is_my_player(player))
+        if (!is_local)
             break;
         // If it's local human player, then setting this mode is an error
         // fall through
@@ -549,9 +551,9 @@ void set_engine_view(struct PlayerInfo *player, long val)
         val = PVM_CreatureView;
         // fall through
     case PVM_CreatureView:
-        set_player_active_camera(player, CamIV_FirstPerson);
-        sync_local_camera(player);
-        if (!is_my_player(player))
+        set_user_active_camera(user, CamIV_FirstPerson);
+        sync_local_camera(user);
+        if (!is_local)
             break;
         lens_mode = 2;
         S3DSetLineOfSightFunction(dummy_sound_line_of_sight);
@@ -561,11 +563,11 @@ void set_engine_view(struct PlayerInfo *player, long val)
     case PVM_IsoWibbleView:
     case PVM_IsoStraightView:
     {
-        struct Camera *camera = &player->cameras[CamIV_Isometric];
-        set_player_active_camera(player, CamIV_Isometric);
+        struct Camera *camera = &ustate->cameras[CamIV_Isometric];
+        set_user_active_camera(user, CamIV_Isometric);
         camera->view_mode = val;
-        sync_local_camera(player);
-        if (!is_my_player(player))
+        sync_local_camera(user);
+        if (!is_local)
             break;
         lens_mode = 0;
         // no need to set temp_cluedo_mode here; it's done in update_engine_settings
@@ -574,9 +576,9 @@ void set_engine_view(struct PlayerInfo *player, long val)
         break;
     }
     case PVM_ParchmentView:
-        set_player_active_camera(player, CamIV_Parchment);
-        sync_local_camera(player);
-        if (!is_my_player(player))
+        set_user_active_camera(user, CamIV_Parchment);
+        sync_local_camera(user);
+        if (!is_local)
             break;
         S3DSetLineOfSightFunction(dummy_sound_line_of_sight);
         S3DSetDeadzoneRadius(1280);
@@ -586,9 +588,9 @@ void set_engine_view(struct PlayerInfo *player, long val)
         // In fade states, keep the settings unchanged
         break;
     case PVM_FrontView:
-        set_player_active_camera(player, CamIV_FrontView);
-        sync_local_camera(player);
-        if (!is_my_player(player))
+        set_user_active_camera(user, CamIV_FrontView);
+        sync_local_camera(user);
+        if (!is_local)
             break;
         lens_mode = 0;
         temp_cluedo_mode = 0;
@@ -596,7 +598,7 @@ void set_engine_view(struct PlayerInfo *player, long val)
         S3DSetDeadzoneRadius(1280);
         break;
     }
-    player->view_mode = val;
+    ustate->view_mode = val;
 }
 
 void draw_overlay_compass(long base_x, long base_y)
@@ -694,7 +696,7 @@ void redraw_isometric_view(void)
     SYNCDBG(6,"Starting");
 
     struct PlayerInfo* player = get_my_player();
-    if (player_invalid(player) || (get_player_active_camera(player) == NULL))
+    if (player_invalid(player) || (get_user_active_camera(get_local_user()) == NULL))
         return;
     TbGraphicsWindow ewnd;
     memset(&ewnd, 0, sizeof(TbGraphicsWindow));
@@ -795,8 +797,8 @@ void process_dungeon_top_pointer_graphic(struct PlayerInfo *player)
 {
     struct Thing *thing;
     struct Dungeon* dungeon = get_dungeon(player->id_number);
-    struct PlayerStateConfigStats* plrst_cfg_stat = get_player_state_stats(player->work_state);
-    struct UserState* ustate = get_user_state(player->user_id);
+    struct UserState* ustate = get_player_user_state(player);
+    struct PlayerStateConfigStats* plrst_cfg_stat = get_player_state_stats(ustate->work_state);
     if (dungeon_invalid(dungeon))
     {
         set_pointer_graphic(MousePG_Invisible);
@@ -859,14 +861,14 @@ void process_dungeon_top_pointer_graphic(struct PlayerInfo *player)
         {
         case CSt_PickAxe:
         {
-            set_pointer_graphic((player->roomspace_highlight_mode == drag_placement_mode) ? MousePG_Pickaxe2 : MousePG_Pickaxe);
+            set_pointer_graphic((ustate->roomspace_highlight_mode == drag_placement_mode) ? MousePG_Pickaxe2 : MousePG_Pickaxe);
             break;
         }
         case CSt_DoorKey:
             set_pointer_graphic(MousePG_LockMark);
             break;
         case CSt_PowerHand:
-            thing_under_hand = player->thing_under_hand;
+            thing_under_hand = ustate->thing_under_hand;
             if (local_state.local_thing_under_hand > 0) {
                 thing_under_hand = local_state.local_thing_under_hand;
             }
@@ -897,7 +899,7 @@ void process_dungeon_top_pointer_graphic(struct PlayerInfo *player)
                     ustate->chosen_power_kind = pwkind;
                     draw_spell_cursor(0, thing->mappos.x.stl.num, thing->mappos.y.stl.num);
                     ustate->chosen_power_kind = 0;
-                    player->thing_under_hand = thing->index;
+                    ustate->thing_under_hand = thing->index;
                 } else {
                     set_pointer_graphic(MousePG_Arrow);
                 }
@@ -912,7 +914,7 @@ void process_dungeon_top_pointer_graphic(struct PlayerInfo *player)
             } else
             {
                 if ((ustate->additional_flags & UsrAF_ChosenSubTileIsHigh) != 0) {
-                  set_pointer_graphic((player->roomspace_highlight_mode == drag_placement_mode) ? MousePG_Pickaxe2 : MousePG_Pickaxe);
+                  set_pointer_graphic((ustate->roomspace_highlight_mode == drag_placement_mode) ? MousePG_Pickaxe2 : MousePG_Pickaxe);
                 } else {
                   set_pointer_graphic(MousePG_Invisible);
                 }
@@ -979,7 +981,7 @@ void process_dungeon_top_pointer_graphic(struct PlayerInfo *player)
 void process_pointer_graphic(void)
 {
     struct PlayerInfo* player = get_my_player();
-    SYNCDBG(6,"Starting for view %d, player state %s, instance %d",(int)player->view_type,player_state_code_name(player->work_state),(int)player->instance_num);
+    SYNCDBG(6,"Starting for view %d, player state %s, instance %d",(int)ustate->view_type,player_state_code_name(ustate->work_state),(int)player->instance_num);
     switch (get_local_view_type(player))
     {
     case PVT_DungeonTop:
@@ -1010,6 +1012,7 @@ void process_pointer_graphic(void)
 
 void redraw_display(void)
 {
+    struct UserState* ustate = get_local_user_state();
     SYNCDBG(5,"Starting");
     struct PlayerInfo* player = get_my_player();
     local_state.display_needs_update = false;
@@ -1049,7 +1052,7 @@ void redraw_display(void)
         local_state.palette_fade_step_map = map_fade_out(local_state.palette_fade_step_map);
         break;
     default:
-        ERRORLOG("Unsupported drawing state, %d",(int)player->view_mode);
+        ERRORLOG("Unsupported drawing state, %d",(int)ustate->view_mode);
         break;
     }
     //LbTextSetWindow(0, 0, MyScreenWidth, MyScreenHeight);

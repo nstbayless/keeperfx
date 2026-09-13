@@ -138,6 +138,7 @@ TbBool cursor_moved_to_new_subtile(struct PlayerInfo *player)
 
 TbBool setup_trap_tooltips(struct Coord3d *pos)
 {
+    struct UserState* ustate = get_local_user_state();
     SYNCDBG(18,"Starting");
     // Traps searching is restricted to one subtile - otherwise we could lose tooltips for other objects.
     struct Thing* thing = get_trap_at_subtile_of_model_and_owned_by(pos->x.stl.num, pos->y.stl.num, -1, -1);
@@ -147,7 +148,7 @@ TbBool setup_trap_tooltips(struct Coord3d *pos)
     if ((thing->trap.revealed == 0) && (player->id_number != thing->owner))
         return false;
     update_gui_tooltip_target(thing);
-    if ((help_tip_time > 20) || (player->work_state == PSt_CreatrQuery))
+    if ((help_tip_time > 20) || (ustate->work_state == PSt_CreatrQuery))
     {
         struct TrapConfigStats* trapst = get_trap_model_stats(thing->model);
         set_gui_tooltip_box_fmt(4,"%s",get_string(trapst->name_stridx));
@@ -160,10 +161,10 @@ TbBool setup_trap_tooltips(struct Coord3d *pos)
 
 TbBool setup_object_tooltips(struct Coord3d *pos)
 {
+    struct UserState* ustate = get_local_user_state();
     long i;
     SYNCDBG(18,"Starting");
-    struct PlayerInfo* player = get_my_player();
-    struct Thing* thing = thing_get(player->thing_under_hand);
+    struct Thing* thing = thing_get(ustate->thing_under_hand);
     if (!thing_is_object(thing))
     {
         thing = get_nearest_object_with_tooltip_at_position(pos->x.stl.num, pos->y.stl.num,0);
@@ -183,7 +184,7 @@ TbBool setup_object_tooltips(struct Coord3d *pos)
         objst = get_object_model_stats(thing->model);
         if ((objst->tooltip_stridx >= 0) && (objst->tooltip_stridx != GUIStr_Empty))
         {
-            if ((help_tip_time > 20) || (player->work_state == PSt_CreatrQuery))
+            if ((help_tip_time > 20) || (ustate->work_state == PSt_CreatrQuery))
             {
                 set_gui_tooltip_box_fmt(5, "%s", get_string(objst->tooltip_stridx));
             }
@@ -249,7 +250,7 @@ TbBool setup_object_tooltips(struct Coord3d *pos)
             if (objst->related_creatr_model)
             {
                 update_gui_tooltip_target(thing);
-                if ((help_tip_time > 20) || (player->work_state == PSt_CreatrQuery))
+                if ((help_tip_time > 20) || (ustate->work_state == PSt_CreatrQuery))
                 {
                     struct CreatureModelConfig* crconf = creature_stats_get(objst->related_creatr_model);
                     const struct RoomConfigStats* roomst = get_room_kind_stats(RoK_LAIR);     //TODO use a separate string for creature lair object than for lair room
@@ -268,6 +269,7 @@ TbBool setup_object_tooltips(struct Coord3d *pos)
 
 short setup_land_tooltips(struct Coord3d *pos)
 {
+  struct UserState* ustate = get_local_user_state();
   SYNCDBG(18,"Starting");
   if (!settings.tooltips_on)
     return false;
@@ -278,8 +280,8 @@ short setup_land_tooltips(struct Coord3d *pos)
     return false;
   update_gui_tooltip_target((void *)(uintptr_t)skind);
   struct PlayerInfo* player = get_my_player();
-  struct Thing *handthing = thing_get(player->thing_under_hand);
-  TbBool in_query_mode = (player->work_state == PSt_CreatrQuery || player->work_state == PSt_QueryAll);
+  struct Thing *handthing = thing_get(ustate->thing_under_hand);
+  TbBool in_query_mode = (ustate->work_state == PSt_CreatrQuery || ustate->work_state == PSt_QueryAll);
   if (in_query_mode == false) {
       if (cursor_moved_to_new_subtile(player) || thing_exists(handthing)) {
           return false;
@@ -301,6 +303,7 @@ short setup_land_tooltips(struct Coord3d *pos)
 
 short setup_room_tooltips(struct Coord3d *pos)
 {
+  struct UserState* ustate = get_local_user_state();
   SYNCDBG(18,"Starting");
   if (!settings.tooltips_on)
     return false;
@@ -313,9 +316,9 @@ short setup_room_tooltips(struct Coord3d *pos)
     return false;
   update_gui_tooltip_target(room);
   struct PlayerInfo* player = get_my_player();
-  struct Thing *handthing = thing_get(player->thing_under_hand);
+  struct Thing *handthing = thing_get(ustate->thing_under_hand);
 
-  TbBool in_query_mode = (player->work_state == PSt_CreatrQuery || player->work_state == PSt_QueryAll);
+  TbBool in_query_mode = (ustate->work_state == PSt_CreatrQuery || ustate->work_state == PSt_QueryAll);
   if (in_query_mode == false) {
       if (cursor_moved_to_new_subtile(player) || thing_exists(handthing)) {
           return false;
@@ -398,13 +401,13 @@ void setup_gui_tooltip(struct GuiButton* gbtn)
 
 TbBool gui_button_tooltip_update(int gbtn_idx)
 {
+  struct UserState* ustate = get_local_user_state();
   if ((gbtn_idx < 0) || (gbtn_idx >= ACTIVE_BUTTONS_COUNT))
   {
     clear_gui_tooltip_button();
     return false;
   }
   int tooltip_delay;
-  struct PlayerInfo* player = get_my_player();
   struct GuiButton* gbtn = &active_buttons[gbtn_idx];
   if ((get_active_menu(gbtn->gmenu_idx)->visual_state == 2) && ((gbtn->btype_value & LbBFeF_NoTooltip) == 0))
   {
@@ -426,7 +429,7 @@ TbBool gui_button_tooltip_update(int gbtn_idx)
             }
         }
 
-        if ( (tool_tip_time > tooltip_delay) || (player->work_state == PSt_CreatrQuery) )
+        if ( (tool_tip_time > tooltip_delay) || (ustate->work_state == PSt_CreatrQuery) )
         {
           if (gbtn->has_shown_before == 0) {
             gbtn->has_shown_before = 1;

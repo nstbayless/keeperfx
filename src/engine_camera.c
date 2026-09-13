@@ -399,10 +399,12 @@ void view_set_camera_tilt(struct Camera *cam, unsigned char mode)
     cam->rotation_angle_y = tilt;
 }
 
-void init_player_cameras(struct PlayerInfo *player)
+void init_user_cameras(NetUserId user)
 {
+    struct UserState* ustate = get_user_state(user);
+    struct PlayerInfo* player = get_player(get_net_user_player_number(user));
     struct Thing* heartng = get_player_soul_container(player->id_number);
-    struct Camera* cam = &player->cameras[CamIV_FirstPerson];
+    struct Camera* cam = &ustate->cameras[CamIV_FirstPerson];
     cam->mappos.x.val = 0;
     cam->mappos.y.val = 0;
     cam->mappos.z.val = 256;
@@ -412,7 +414,7 @@ void init_player_cameras(struct PlayerInfo *player)
     cam->rotation_angle_x = ANGLE_EAST;
     cam->view_mode = PVM_CreatureView;
 
-    cam = &player->cameras[CamIV_Isometric];
+    cam = &ustate->cameras[CamIV_Isometric];
     cam->mappos.x.val = heartng->mappos.x.val;
     cam->mappos.y.val = heartng->mappos.y.val;
     cam->mappos.z.val = 0;
@@ -427,14 +429,14 @@ void init_player_cameras(struct PlayerInfo *player)
     }
     cam->zoom = player->isometric_view_zoom_level;
 
-    cam = &player->cameras[CamIV_Parchment];
+    cam = &ustate->cameras[CamIV_Parchment];
     cam->mappos.x.val = 0;
     cam->mappos.y.val = 0;
     cam->mappos.z.val = 32;
     cam->horizontal_fov = 94;
     cam->view_mode = PVM_ParchmentView;
 
-    cam = &player->cameras[CamIV_FrontView];
+    cam = &ustate->cameras[CamIV_FrontView];
     cam->mappos.x.val = heartng->mappos.x.val;
     cam->mappos.y.val = heartng->mappos.y.val;
     cam->mappos.z.val = 32;
@@ -677,6 +679,7 @@ TbBool view_move_camera_to_position(struct Camera *cam, MapCoord x, MapCoord y, 
 
 void update_player_camera(struct PlayerInfo *player)
 {
+    struct UserState* ustate = get_player_user_state(player);
     struct Dungeon *dungeon = get_players_dungeon(player);
     struct Camera *cam = get_player_active_camera(player);
 
@@ -696,13 +699,13 @@ void update_player_camera(struct PlayerInfo *player)
     case PVM_IsoWibbleView:
     case PVM_IsoStraightView:
         // correct according to dissassembly
-        player->cameras[CamIV_FrontView].mappos.x.val = cam->mappos.x.val;
-        player->cameras[CamIV_FrontView].mappos.y.val = cam->mappos.y.val;
+        ustate->cameras[CamIV_FrontView].mappos.x.val = cam->mappos.x.val;
+        ustate->cameras[CamIV_FrontView].mappos.y.val = cam->mappos.y.val;
         break;
     case PVM_FrontView:
         // correct according to dissassembly
-        player->cameras[CamIV_Isometric].mappos.x.val = cam->mappos.x.val;
-        player->cameras[CamIV_Isometric].mappos.y.val = cam->mappos.y.val;
+        ustate->cameras[CamIV_Isometric].mappos.x.val = cam->mappos.x.val;
+        ustate->cameras[CamIV_Isometric].mappos.y.val = cam->mappos.y.val;
         break;
     }
     if (dungeon->camera_deviate_quake) {

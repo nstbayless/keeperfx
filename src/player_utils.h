@@ -68,7 +68,7 @@ void process_players(void);
 
 void set_player_colour(PlayerNumber plyr_idx, unsigned char colour_idx);
 
-void set_player_roomspace_size(struct PlayerInfo *player, long size);
+void set_user_roomspace_size(NetUserId user, long size);
 /******************************************************************************/
 #ifdef __cplusplus
 }

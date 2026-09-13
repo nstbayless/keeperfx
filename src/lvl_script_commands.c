@@ -5377,6 +5377,7 @@ static void set_power_configuration_check(const struct ScriptLine *scline)
 
 static void set_power_configuration_process(struct ScriptContext *context)
 {
+    struct UserState* ustate = get_local_user_state();
     struct PowerConfigStats *powerst = get_power_model_stats(context->value->shorts[0]);
     switch (context->value->bytes[2])
     {
@@ -5478,8 +5479,7 @@ static void set_power_configuration_process(struct ScriptContext *context)
             break;
     }
     update_powers_tab_to_config();
-    struct PlayerInfo *player = get_my_player();
-    if (player->view_type == PVT_DungeonTop)
+    if (ustate->view_type == PVT_DungeonTop)
     {
         if (menu_is_active(GMnu_SPELL))
         {

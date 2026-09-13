@@ -344,9 +344,9 @@ TbBool startup_saved_packet_game(void)
     if (!init_level())
         return false;
     setup_zombie_players();//TODO GUI What about packet file from network game? No zombies there..
-    init_players();
     get_my_player()->user_id = SOLO_HUMAN_ID;
-    init_user_state(get_my_player()->user_id);
+    init_user_state(get_my_player()->user_id); // before init_players()
+    init_players();
     if (game.active_players_count == 1)
         game.game_kind = GKind_LocalGame;
     if (game.turns_stored < game.turns_fastforward)
@@ -354,8 +354,7 @@ TbBool startup_saved_packet_game(void)
     post_init_level();
     post_init_players();
     set_selected_level_number(0);
-    struct PlayerInfo* player = get_my_player();
-    set_engine_view(player, rotate_mode_to_view_mode(game.packet_save_head.video_rotate_mode));
+    set_user_engine_view(get_local_user(), rotate_mode_to_view_mode(game.packet_save_head.video_rotate_mode));
     return true;
 }
 

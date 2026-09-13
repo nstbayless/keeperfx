@@ -188,13 +188,14 @@ TbBool ftest_util_replace_slab_columns(MapSlabCoord slb_x, MapSlabCoord slb_y, P
 TbBool ftest_util_move_camera(long x, long y, PlayerNumber plyr_idx)
 {
     struct PlayerInfo* player = get_player(plyr_idx);
+    struct UserState* ustate = get_player_user_state(player);
     if(player_invalid(player))
     {
         LbErrorLog("Player %d not found", plyr_idx);
         return false;
     }
 
-    struct Camera* camera = &player->cameras[CamIV_Isometric];
+    struct Camera* camera = &ustate->cameras[CamIV_Isometric];
     if(camera == NULL)
     {
         LbErrorLog("Could not find camera %d", CamIV_Isometric);

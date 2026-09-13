@@ -138,9 +138,8 @@ NetUserId get_player_primary_user(const struct PlayerInfo *player)
 {
     if ((player == NULL) || player_invalid(player))
         return -1;
-    // TODO: store player_id in UserState, avoids net_* function
     for (NetUserId user = 0; user < MAX_NET_USERS; ++user) {
-        if (get_net_user_player_number(user) == player->id_number) {
+        if (game.user_states[user].player_id == player->id_number) {
             return user;
         }
     }
@@ -298,7 +297,6 @@ void clear_players(void)
         struct PlayerInfo* player = &game.players[i];
         memset(player, 0, sizeof(struct PlayerInfo));
         player->id_number = PLAYERS_COUNT;
-        player->user_id = -1;
         switch (i)
         {
         case PLAYER_GOOD:
@@ -314,10 +312,13 @@ void clear_players(void)
     }
     memset(&bad_player, 0, sizeof(struct PlayerInfo));
     bad_player.id_number = PLAYERS_COUNT;
-    bad_player.user_id = -1;
     memset(game.user_states, 0, sizeof(game.user_states));
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        game.user_states[user].player_id = PLAYER_NONE;
+    }
     memset(&local_state, 0, sizeof(local_state));
     memset(&bad_user_state, 0, sizeof(bad_user_state));
+    bad_user_state.player_id = PLAYER_NONE;
     game.active_players_count = 0;
     //game.game_kind = GKind_LocalGame;
 }

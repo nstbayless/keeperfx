@@ -375,7 +375,7 @@ void process_pause_packet(long curr_pause, long new_pause)
       {
           if ((ustate->additional_flags & UsrAF_LightningPaletteIsActive) != 0)
           {
-              PaletteSetUserPalette(player->user_id, engine_palette);
+              PaletteSetUserPalette(get_local_user(), engine_palette);
               ustate->additional_flags &= ~UsrAF_LightningPaletteIsActive;
           }
       }
@@ -555,8 +555,8 @@ void update_box_lag_compensation(struct PlayerInfo* player) {
     box_lag_compensation_x = 0;
     box_lag_compensation_y = 0;
     if (is_my_player(player)) {
-        struct Packet* auth_pckt = get_packet(player->user_id);
-        const struct Packet *visual_pckt = get_history_packet(player->user_id, get_gameturn());
+        struct Packet* auth_pckt = get_local_packet();
+        const struct Packet *visual_pckt = get_history_packet(get_local_user(), get_gameturn());
         if (visual_pckt != NULL) {
             box_lag_compensation_x = coord_slab(auth_pckt->pos_x) - coord_slab(visual_pckt->pos_x);
             box_lag_compensation_y = coord_slab(auth_pckt->pos_y) - coord_slab(visual_pckt->pos_y);
@@ -663,18 +663,24 @@ TbBool process_user_global_packet_action(NetUserId user)
   switch (pckt->action)
   {
   case PckA_QuitToMainMenu:
-      if (is_my_player(player))
+      if (user == get_local_user())
       {
         turn_off_all_menus();
         frontend_save_continue_game(true);
         free_swipe_graphic();
       }
       player->display_flags |= PlaF6_PlyrHasQuit;
-      process_player_leave_game_packet(player);
+      process_user_leave_game_packet(user);
+      return 1;
+  case PckA_UserDropped:
+      if (user == SERVER_ID) {
+        // only the host can send these
+        process_user_dropped_packet(pckt->actn_par1);
+      }
       return 1;
   case PckA_ForceApplicationClose:
       {
-        if (is_my_player(player))
+        if (user == get_local_user())
         {
           turn_off_all_menus();
           frontend_save_continue_game(true);
@@ -684,7 +690,7 @@ TbBool process_user_global_packet_action(NetUserId user)
         else
         {
           player->display_flags |= PlaF6_PlyrHasQuit;
-          process_player_leave_game_packet(player);
+          process_user_leave_game_packet(user);
         }
         return 1;
       }
@@ -709,7 +715,7 @@ TbBool process_user_global_packet_action(NetUserId user)
           quit_game = 1;
           return 0;
         }
-        TbBool host_packet = player->user_id == SERVER_ID;
+        TbBool host_packet = user == SERVER_ID;
         if (!my_player) {
           if (host_packet && (player->victory_state != VicS_LostLevel)) {
             local_ustate->additional_flags &= ~UsrAF_UnlockedLordTorture;
@@ -739,7 +745,7 @@ TbBool process_user_global_packet_action(NetUserId user)
       return 0;
       }
   case PckA_PlyrMsgEnd:
-      process_gameplay_chat_message(player->user_id, player->mp_pending_message);
+      process_gameplay_chat_message(user, player->mp_pending_message);
       player->mp_pending_message[0] = '\0';
       return 0;
   case PckA_PlyrMsgClear:
@@ -1615,6 +1621,7 @@ void exchange_packets(void)
 
     MULTIPLAYER_LOG("process_packets: === BEGIN turn=%lu ===", (unsigned long)get_gameturn());
     const NetUserId local_user = get_local_user();
+    host_announce_dropped_users();
     input_lag_update(get_local_packet());
     set_local_packet_turn();
     update_turn_checksums();

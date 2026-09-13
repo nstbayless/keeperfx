@@ -135,7 +135,7 @@ extern TbBool process_user_global_packet_action(NetUserId user);
 // player's user, or if that's invalid then the local user
 static NetUserId console_cmd_user(PlayerNumber plyr_idx)
 {
-    NetUserId user = get_player(plyr_idx)->user_id;
+    NetUserId user = get_player_primary_user(get_player(plyr_idx));
     if (user < 0) {
         user = get_local_user();
     }

@@ -793,7 +793,6 @@ void effect_generate_effect_elements(const struct Thing *thing)
     case 4:
     {
         HitPoints i = effcst->start_health / 2;
-        struct PlayerInfo* player;
         if (thing->health == effcst->start_health)
         {
             memset(temp_pal, 63, PALETTE_SIZE);
@@ -818,8 +817,7 @@ void effect_generate_effect_elements(const struct Thing *thing)
                 (float)thing->health / (float)i);
         } else
         {
-            player = get_my_player();
-            PaletteSetUserPalette(player->user_id, engine_palette);
+            PaletteSetUserPalette(get_local_user(), engine_palette);
             LbPaletteStopOpenFade();
             RendererSetScreenTint(0.0f, 0.0f, 0.0f, 0.0f);
         }

@@ -158,7 +158,6 @@ struct CheatSelection
 struct PlayerInfo {
     unsigned char allocflags;
     unsigned char display_flags;
-    NetUserId user_id; // -1 if no user
     unsigned int hand_busy_until_turn;
     char player_name[20];
     unsigned char victory_state;
@@ -199,6 +198,8 @@ struct PlayerInfo {
     unsigned short generate_speed;
 };
 
+#define PLAYER_NONE (-1)
+
 /* Game state that exists per human user. Computer-controlled
  * players are not users.
  *
@@ -206,6 +207,7 @@ struct PlayerInfo {
  * user per client, including the host.
  */
 struct UserState {
+    PlayerNumber player_id;
     unsigned char init_flags; // Uses UserInitFlags
     unsigned char additional_flags; // Uses UserAdditionalFlags
     unsigned char input_crtr_control;

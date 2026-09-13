@@ -110,20 +110,12 @@ TbBool network_is_host(void)
     return netstate.my_id == SERVER_ID;
 }
 
-// map NetUserId -> PlayerNumber, or -1 for a user without a player.
-// Currently, this mapping is 1-1.
-// Potential future work: "archon mode" (multiple users share a player)
-static PlayerNumber net_user_player_number[MAX_NET_USERS];
-
 PlayerNumber get_net_user_player_number(NetUserId user)
 {
-    if (!network_is_active()) {
-        return (user == SOLO_HUMAN_ID) ? my_player_number : -1;
-    }
     if ((user < 0) || (user >= MAX_NET_USERS)) {
-        return -1;
+        return PLAYER_NONE;
     }
-    return net_user_player_number[user];
+    return game.user_states[user].player_id;
 }
 
 static void setup_players_from_startup_packets(const struct StartupSyncPacket startup_sync_packets[MAX_NET_USERS])
@@ -140,9 +132,8 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
         struct PlayerInfo *player = get_player(k);
         struct UserState* ustate = get_user_state(i);
         player->id_number = k;
-        player->user_id = i;
         player->allocflags |= PlaF_Allocated;
-        init_user_state(i);
+        init_user_state(i, k);
         switch (sync->video_rotate_mode) {
             case 0: ustate->view_mode_restore = PVM_IsoWibbleView; break;
             case 1: ustate->view_mode_restore = PVM_IsoStraightView; break;
@@ -216,7 +207,9 @@ static TbBool verify_startup_sprite_zip_checksums(const struct StartupSyncPacket
 
 static struct StartupSyncPacket s_local_startup_sync;
 static struct StartupSyncPacket s_startup_sync_packets[MAX_NET_USERS];
-static TbBool network_disconnect_victory_enabled;
+static TbBool disconnect_victory_enabled[PLAYERS_COUNT];
+// host only; users whose departure has been announced via packet
+static uint32_t announced_dropped_users;
 
 static uint8_t calculate_initial_input_lag(void)
 {
@@ -302,12 +295,13 @@ static void setup_network_player_numbers(void)
     TbBool is_set = false;
     int k = 0;
     SYNCDBG(6, "Starting");
+    announced_dropped_users = 0;
     for (NetUserId i = 0; i < MAX_NET_USERS; i++)
     {
-        net_user_player_number[i] = -1;
+        game.user_states[i].player_id = PLAYER_NONE;
         if (net_user_info[i].network_user_active)
         {
-            net_user_player_number[i] = k;
+            game.user_states[i].player_id = k;
             if ((!is_set) && (my_player_number == i))
             {
                 is_set = true;
@@ -376,13 +370,17 @@ TbBool init_players_network_game(void)
 
 void are_disconnect_victories_allowed(void)
 {
-    struct PlayerInfo *myplyr = get_my_player();
-    network_disconnect_victory_enabled = false;
-    for (int player_index = 0; player_index < game.active_players_count; player_index++) {
-        struct PlayerInfo *player = get_player(player_index);
-        if (player_exists(player) && !is_my_player(player) && players_are_enemies(myplyr->id_number, player->id_number)) {
-            network_disconnect_victory_enabled = true;
-            return;
+    for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++) {
+        disconnect_victory_enabled[plyr_idx] = false;
+        if (!player_exists(get_player(plyr_idx))) {
+            continue;
+        }
+        for (int other_idx = 0; other_idx < game.active_players_count; other_idx++) {
+            struct PlayerInfo *other = get_player(other_idx);
+            if (player_exists(other) && (other_idx != plyr_idx) && players_are_enemies(plyr_idx, other->id_number)) {
+                disconnect_victory_enabled[plyr_idx] = true;
+                break;
+            }
         }
     }
 }
@@ -418,15 +416,14 @@ static void resolve_network_quit_outcome(struct PlayerInfo *player)
     set_player_as_won_level(player);
 }
 
-static TbBool network_has_remote_enemies_remaining(void)
+static TbBool player_has_enemies_to_defeat(const struct PlayerInfo *player)
 {
-    struct PlayerInfo *myplyr = get_my_player();
     for (int i = 0; i < PLAYERS_COUNT; i++) {
-        struct PlayerInfo *player = get_player(i);
-        TbBool is_active_enemy = player_exists(player) && !is_my_player(player) && player->is_active == 1 && !player_cannot_win(player->id_number) && players_are_enemies(myplyr->id_number, player->id_number);
-        TbBool is_connected_network_player = (player->allocflags & PlaF_CompCtrl) == 0 && network_user_active(player->user_id);
-        TbBool is_initial_computer_player = (player->allocflags & PlaF_CompCtrl) != 0 && i >= game.active_players_count;
-        if (is_active_enemy && (is_connected_network_player || is_initial_computer_player)) {
+        struct PlayerInfo *other = get_player(i);
+        TbBool is_active_enemy = player_exists(other) && (other != player) && other->is_active == 1 && !player_cannot_win(other->id_number) && players_are_enemies(player->id_number, other->id_number);
+        TbBool is_human_driven = (other->allocflags & PlaF_CompCtrl) == 0 && get_player_primary_user(other) >= 0;
+        TbBool is_initial_computer_player = (other->allocflags & PlaF_CompCtrl) != 0 && i >= game.active_players_count;
+        if (is_active_enemy && (is_human_driven || is_initial_computer_player)) {
             return true;
         }
     }
@@ -466,8 +463,11 @@ static void stop_network_game_state(void)
 {
     memset(net_user_info, 0, sizeof(net_user_info));
     clear_flag(game.system_flags, GSF_NetworkActive);
+    announced_dropped_users = 0;
     struct PlayerInfo *myplyr = get_my_player();
-    NetUserId old_user = myplyr->user_id;
+    
+    // move to SOLO slot, remove all other users.
+    NetUserId old_user = netstate.my_id;
     for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
         if (user == old_user) {
             continue;
@@ -477,19 +477,15 @@ static void stop_network_game_state(void)
             light_delete_light(ustate->cursor_light_idx);
         }
         memset(ustate, 0, sizeof(*ustate));
+        ustate->player_id = PLAYER_NONE;
     }
     struct UserState *old_state = get_user_state(old_user);
     if ((old_user != SOLO_HUMAN_ID) && !user_state_invalid(old_state)) {
         *get_user_state(SOLO_HUMAN_ID) = *old_state;
         memset(old_state, 0, sizeof(*old_state));
+        old_state->player_id = PLAYER_NONE;
     }
-    for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++) {
-        struct PlayerInfo *player = get_player(plyr_idx);
-        if (player != myplyr) {
-            player->user_id = -1;
-        }
-    }
-    myplyr->user_id = SOLO_HUMAN_ID;
+    get_user_state(SOLO_HUMAN_ID)->player_id = myplyr->id_number;
     clear_flag(game.system_flags, GSF_NetGameNoSync);
     clear_flag(game.system_flags, GSF_NetSeedNoSync);
     fe_network_active = 0;
@@ -530,102 +526,189 @@ static TbBool host_already_won_level(void)
     return false;
 }
 
-void process_player_leave_game_packet(struct PlayerInfo *player)
+// decide victories for player whose opponents have departed
+static void resolve_disconnect_victories(struct PlayerInfo *departed)
 {
-    if (player != get_my_player()) {
-        if (network_is_active()) {
-            OnDroppedUser(player->user_id, NETDROP_MANUAL);
-            process_disconnected_network_players();
-            return;
+    for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++) {
+        struct PlayerInfo *player = get_player(plyr_idx);
+        if (!player_exists(player) || (player == departed) || (player->is_active != 1) || ((player->allocflags & PlaF_CompCtrl) != 0)) {
+            continue;
         }
-    } else if (network_is_active()) {
+        if (!disconnect_victory_enabled[plyr_idx] || !players_are_enemies(plyr_idx, departed->id_number)) {
+            continue;
+        }
+        if (player_has_enemies_to_defeat(player)) {
+            continue;
+        }
+        int32_t plyr_count = 0;
+        TbBool winning_quit = winning_player_quitting(departed, &plyr_count);
+        if (winning_quit) {
+            for (int i = 0; i < PLAYERS_COUNT; i++) {
+                struct PlayerInfo *swplyr = get_player(i);
+                if (player_exists(swplyr) && (swplyr->is_active == 1)) {
+                    resolve_network_quit_outcome(swplyr);
+                }
+            }
+        }
+        resolve_network_quit_outcome(player);
+        if (winning_quit && (plyr_count > 1)) {
+            for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+                if (game.user_states[user].player_id != plyr_idx) {
+                    continue;
+                }
+                if (game.conf.rules[plyr_idx].gameplay.winner_tortures_loser) {
+                    game.user_states[user].additional_flags |= UsrAF_UnlockedLordTorture;
+                } else {
+                    game.user_states[user].additional_flags &= ~UsrAF_UnlockedLordTorture;
+                }
+            }
+        }
+    }
+}
+
+static void abandon_network_player(struct PlayerInfo *player, TbBool announce)
+{
+    if ((player->allocflags & PlaF_CompCtrl) == 0) {
+        // re-negotiate input latency
+        network_lobby_ping = GetPing(my_player_number);
+        input_lag_reset_request(calculate_initial_input_lag());
+        if (announce && player->player_name[0] != '\0') {
+            message_add_fmt(MsgType_Blank, 0, get_string(GUIStr_NetPlayerDisconnected), player->player_name);
+        }
+        JUSTLOG("p:%d player %s departed", player->id_number, player->player_name);
+        if (player->victory_state == VicS_Undecided) {
+            replace_network_player_with_ai(player);
+        }
+    }
+    if (player->victory_state != VicS_Undecided) {
+        player->allocflags &= ~PlaF_Allocated;
+    }
+    resolve_disconnect_victories(player);
+}
+
+static struct PlayerInfo *drop_network_user(NetUserId user)
+{
+    struct UserState *ustate = get_user_state(user);
+    if (user_state_invalid(ustate) || (ustate->player_id == PLAYER_NONE)) {
+        return NULL;
+    }
+    struct PlayerInfo *player = get_player(ustate->player_id);
+    JUSTLOG("u:%d user left the match (player %d)", (int)user, (int)ustate->player_id);
+    if (ustate->cursor_light_idx != 0) {
+        light_delete_light(ustate->cursor_light_idx);
+    }
+    memset(ustate, 0, sizeof(*ustate));
+    ustate->player_id = PLAYER_NONE;
+    if (!player_exists(player) || (get_player_primary_user(player) >= 0)) {
+        return NULL;
+    }
+    abandon_network_player(player, user != SERVER_ID);
+    return player;
+}
+
+static void leave_network_if_alone(const struct PlayerInfo *departed)
+{
+    if (network_has_remote_users_remaining()) {
+        return;
+    }
+    struct PlayerInfo *myplyr = get_my_player();
+    if (player_has_enemies_to_defeat(myplyr)) {
+        stop_network_game_and_continue_locally();
+        return;
+    }
+    TbBool enemy_departed = (departed != NULL) && disconnect_victory_enabled[myplyr->id_number] && players_are_enemies(myplyr->id_number, departed->id_number);
+    if (enemy_departed && (myplyr->victory_state == VicS_Undecided)) {
         stop_network_game_and_quit_to_main_menu();
     } else {
-        quit_game = 1;
+        stop_network_game_and_continue_locally();
     }
-    player->allocflags &= ~PlaF_Allocated;
+}
+
+void process_user_leave_game_packet(NetUserId user)
+{
+    if (user == get_local_user()) {
+        if (network_is_active()) {
+            stop_network_game_and_quit_to_main_menu();
+        } else {
+            quit_game = 1;
+        }
+        get_my_player()->allocflags &= ~PlaF_Allocated;
+        return;
+    }
+    if (!network_is_active()) {
+        // recorded game; the user's keeper simply vanishes...
+        struct PlayerInfo *player = get_player(get_net_user_player_number(user));
+        if (player_exists(player)) {
+            player->allocflags &= ~PlaF_Allocated;
+        }
+        return;
+    }
+    
+    // note: packet processed in sync with simulation, it's okay to do this.
+    OnDroppedUser(user, NETDROP_MANUAL);
+    struct PlayerInfo *abandoned = drop_network_user(user);
+    leave_network_if_alone(abandoned);
+}
+
+void process_user_dropped_packet(NetUserId user)
+{
+    if (!network_is_active() || (user < 0) || (user >= MAX_NET_USERS) || (user == get_local_user())) {
+        return;
+    }
+    struct PlayerInfo *abandoned = drop_network_user(user);
+    leave_network_if_alone(abandoned);
+}
+
+void host_announce_dropped_users(void)
+{
+    if (!network_is_active() || !network_is_host()) {
+        return;
+    }
+    struct Packet *pckt = get_local_packet();
+    if (pckt->action != PckA_None) {
+        return;
+    }
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        if ((user == netstate.my_id) || (game.user_states[user].player_id == PLAYER_NONE)) {
+            continue;
+        }
+        if (network_user_active(user) || ((announced_dropped_users & (1u << user)) != 0)) {
+            continue;
+        }
+        set_packet_action(pckt, PckA_UserDropped, user, 0, 0, 0);
+        announced_dropped_users |= (1u << user);
+        return;
+    }
 }
 
 void process_disconnected_network_players(void)
 {
-    if (!network_is_active()) {
+    if (!network_is_active() || network_is_host() || (netstate.users[SERVER_ID].progress != USER_UNUSED)) {
         return;
     }
-    struct PlayerInfo *myplyr = get_my_player();
-    struct UserState *ustate = get_user_state(get_local_user());
-    TbBool host_disconnected = (netstate.my_id != SERVER_ID) && (netstate.users[SERVER_ID].progress == USER_UNUSED);
-    TbBool disconnected = host_disconnected;
-    TbBool enemy_disconnected = false;
-    TbBool winning_quit = false;
-    int32_t plyr_count = 0;
-    if (host_disconnected && host_already_won_level()) {
+    struct UserState *ustate = get_local_user_state();
+    if (host_already_won_level()) {
         ustate->additional_flags &= ~UsrAF_UnlockedLordTorture;
         quit_game = 1;
         return;
     }
-    for (int player_index = 0; player_index < MAX_NET_USERS; player_index++) {
-        struct PlayerInfo *player = get_player(player_index);
-        if (!player_exists(player) || is_my_player(player) || (!host_disconnected && network_user_active(player->user_id))) {
+    message_add(MsgType_Blank, 0, get_string(GUIStr_NetHostConnectionLost));
+    struct PlayerInfo *myplyr = get_my_player();
+    TbBool enemy_departed = false;
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        if (user == netstate.my_id) {
             continue;
         }
-        disconnected = true;
-        if (network_disconnect_victory_enabled && players_are_enemies(myplyr->id_number, player->id_number)) {
-            enemy_disconnected = true;
-            if (!winning_quit && winning_player_quitting(player, &plyr_count)) {
-                winning_quit = true;
-            }
-        }
-        if ((player->allocflags & PlaF_CompCtrl) == 0) {
-            network_lobby_ping = GetPing(my_player_number);
-            input_lag_reset_request(calculate_initial_input_lag());
-            const char* departed_name = player->player_name;
-            if (!host_disconnected && player->id_number != get_net_user_player_number(SERVER_ID) && departed_name[0] != '\0') {
-                message_add_fmt(MsgType_Blank, 0, get_string(GUIStr_NetPlayerDisconnected), departed_name);
-                JUSTLOG("p:%d player %s departed", player->id_number, departed_name);
-            }
-            if (player->victory_state == VicS_Undecided) {
-                replace_network_player_with_ai(player);
-                continue;
-            }
-        }
-        if (player->victory_state != VicS_Undecided) {
-            player->allocflags &= ~PlaF_Allocated;
+        struct PlayerInfo *abandoned = drop_network_user(user);
+        if ((abandoned != NULL) && disconnect_victory_enabled[myplyr->id_number] && players_are_enemies(myplyr->id_number, abandoned->id_number)) {
+            enemy_departed = true;
         }
     }
-
-    TbBool has_enemies_to_defeat = network_has_remote_enemies_remaining();
-    if (!disconnected || (!host_disconnected && has_enemies_to_defeat)) {
+    if (player_has_enemies_to_defeat(myplyr)) {
+        stop_network_game_and_continue_locally();
         return;
     }
-    if (host_disconnected) {
-        message_add(MsgType_Blank, 0, get_string(GUIStr_NetHostConnectionLost));
-        if (has_enemies_to_defeat) {
-            stop_network_game_and_continue_locally();
-            return;
-        }
-    }
-    if (winning_quit) {
-        for (int i = 0; i < PLAYERS_COUNT; i++) {
-            struct PlayerInfo *swplyr = get_player(i);
-            if (player_exists(swplyr) && (swplyr->is_active == 1)) {
-                resolve_network_quit_outcome(swplyr);
-            }
-        }
-    }
-    if (enemy_disconnected) {
-        resolve_network_quit_outcome(myplyr);
-    }
-    if (winning_quit && (plyr_count > 1)) {
-        if (game.conf.rules[myplyr->id_number].gameplay.winner_tortures_loser) {
-            ustate->additional_flags |= UsrAF_UnlockedLordTorture;
-        } else {
-            ustate->additional_flags &= ~UsrAF_UnlockedLordTorture;
-        }
-    }
-    if (!host_disconnected && network_has_remote_users_remaining()) {
-        return;
-    }
-    if (enemy_disconnected && myplyr->victory_state == VicS_Undecided) {
+    if (enemy_departed && (myplyr->victory_state == VicS_Undecided)) {
         stop_network_game_and_quit_to_main_menu();
     } else {
         stop_network_game_and_continue_locally();

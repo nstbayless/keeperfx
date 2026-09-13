@@ -133,7 +133,7 @@ void set_player_as_won_level(struct PlayerInfo *player)
     if (lord_of_the_land_in_prison_or_tortured())
     {
         SYNCLOG("Lord Of The Land kept captive. Torture tower unlocked.");
-        get_user_state(player->user_id)->additional_flags |= UsrAF_UnlockedLordTorture;
+        get_player_user_state(player)->additional_flags |= UsrAF_UnlockedLordTorture;
     }
     output_message(SMsg_LevelWon, 0);
   }
@@ -775,7 +775,7 @@ void turn_user_cursor_light(NetUserId user, TbBool turn_on)
         light_turn_light_off(idx);
 }
 
-void init_user_state(NetUserId user)
+void init_user_state(NetUserId user, PlayerNumber player_id)
 {
     struct UserState* ustate = get_user_state(user);
     if (user_state_invalid(ustate))
@@ -784,6 +784,7 @@ void init_user_state(NetUserId user)
         return;
     }
     memset(ustate, 0, sizeof(*ustate));
+    ustate->player_id = player_id;
     ustate->teleport_destination = 19;
     ustate->battleid = 1;
     struct InitLight ilght;
@@ -1134,9 +1135,8 @@ void init_players_local_game(void)
     SYNCDBG(4,"Starting");
     struct PlayerInfo* player = get_my_player();
     player->id_number = my_player_number;
-    player->user_id = SOLO_HUMAN_ID;
     player->allocflags |= PlaF_Allocated;
-    init_user_state(player->user_id);
+    init_user_state(SOLO_HUMAN_ID, player->id_number);
 
     if( player->id_number == PLAYER_GOOD)
     {

@@ -1013,7 +1013,6 @@ void clear_players_for_save(void)
       // Cameras live in the user state, which this reset leaves alone.
       memset(player, 0, sizeof(struct PlayerInfo));
       player->id_number = saved_player_id;
-      player->user_id = -1;
       player->is_active = saved_is_active;
       set_flag_value(player->allocflags, PlaF_Allocated, ((saved_allocation_flags & PlaF_Allocated) != 0));
       set_flag_value(player->allocflags, PlaF_CompCtrl, ((saved_allocation_flags & PlaF_CompCtrl) != 0));

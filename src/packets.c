@@ -382,13 +382,13 @@ void process_pause_packet(long curr_pause, long new_pause)
   }
 }
 
-void process_camera_controls(struct Camera* cam, const struct Packet* pckt, struct PlayerInfo* player)
+void process_camera_controls(struct Camera* cam, const struct Packet* pckt, NetUserId user, struct PlayerInfo* player)
 {
-    struct UserState* ustate = get_player_user_state(player);
+    struct UserState* ustate = get_user_state(user);
     if (cam == NULL) {
         return;
     }
-    const TbBool is_local_camera = cam != get_player_active_camera(player);
+    const TbBool is_local_camera = cam != get_user_active_camera(user);
     long inter_val;
     int scroll_speed = cam->zoom;
     if (scroll_speed <= 0)
@@ -577,8 +577,8 @@ void process_user_dungeon_control_packet_control(NetUserId user)
         ERRORLOG("No active camera");
         return;
     }
-    process_camera_controls(cam, pckt, player);
-    if (is_my_player(player)) {
+    process_camera_controls(cam, pckt, user, player);
+    if (user == get_local_user()) {
         TbBool settings_changed = false;
         if ((pckt->control_flags & (PCtr_ViewTiltUp | PCtr_ViewTiltDown | PCtr_ViewTiltReset)) != 0) {
             settings.isometric_tilt = cam->rotation_angle_y;

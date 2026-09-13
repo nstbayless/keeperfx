@@ -228,7 +228,7 @@ void update_local_cameras(void)
         }
     }
     if (local_camera_move_cam != cam) {
-        process_camera_controls(cam, pckt, player);
+        process_camera_controls(cam, pckt, get_local_user(), player);
         view_process_camera_inertia(cam);
     }
 
@@ -347,7 +347,7 @@ void update_local_view_prediction(const struct Packet *pckt)
 
 unsigned char get_local_view_type(const struct PlayerInfo *player)
 {
-    const struct UserState *ustate = get_player_user_state(player);
+    const struct UserState *ustate = is_my_player(player) ? get_local_user_state() : get_player_user_state(player);
     if (!is_my_player(player) || local_state.view_type == PVT_None) {
         return ustate->view_type;
     }
@@ -359,11 +359,14 @@ unsigned char get_local_view_type(const struct PlayerInfo *player)
 
 struct Camera* get_local_active_camera(struct PlayerInfo *player)
 {
-    struct Camera *camera = get_player_active_camera(player);
-    if (camera == NULL || !is_my_player(player) || !local_camera_ready) {
+    if (!is_my_player(player)) {
+        return get_player_active_camera(player);
+    }
+    struct Camera *camera = get_user_active_camera(get_local_user());
+    if (camera == NULL || !local_camera_ready) {
         return camera;
     }
-    const struct UserState *ustate = get_player_user_state(player);
+    const struct UserState *ustate = get_local_user_state();
     unsigned char view_type = get_local_view_type(player);
     if (view_type == PVT_MapScreen) {
         return &local_cameras[CamIV_Parchment];

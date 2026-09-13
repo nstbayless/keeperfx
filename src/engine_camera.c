@@ -677,11 +677,11 @@ TbBool view_move_camera_to_position(struct Camera *cam, MapCoord x, MapCoord y, 
     return (*positions[0] == targets[0]) && (*positions[1] == targets[1]);
 }
 
-void update_player_camera(struct PlayerInfo *player)
+static void update_user_camera(NetUserId user, struct PlayerInfo *player)
 {
-    struct UserState* ustate = get_player_user_state(player);
+    struct UserState* ustate = get_user_state(user);
     struct Dungeon *dungeon = get_players_dungeon(player);
-    struct Camera *cam = get_player_active_camera(player);
+    struct Camera *cam = get_user_active_camera(user);
 
     view_process_camera_inertia(cam);
     switch (cam->view_mode)
@@ -718,15 +718,17 @@ void update_player_camera(struct PlayerInfo *player)
 
 void update_all_players_cameras(void)
 {
-  int i;
-  struct PlayerInfo *player;
   SYNCDBG(6,"Starting");
-  for (i=0; i<PLAYERS_COUNT; i++)
+  for (NetUserId user = 0; user < MAX_NET_USERS; user++)
   {
-    player = get_player(i);
+    PlayerNumber plyr_idx = get_net_user_player_number(user);
+    if (plyr_idx < 0) {
+      continue;
+    }
+    struct PlayerInfo *player = get_player(plyr_idx);
     if (player_exists(player) && ((player->allocflags & PlaF_CompCtrl) == 0))
     {
-          update_player_camera(player);
+          update_user_camera(user, player);
     }
   }
 

@@ -151,6 +151,7 @@ void keeper_sell_roomspace(NetUserId user, struct RoomSpace *roomspace);
 void keeper_build_roomspace(NetUserId user, struct RoomSpace *roomspace);
 
 void update_roomspaces();
+TbBool player_has_roomspace_in_progress(PlayerNumber plyr_idx);
 
 void process_build_roomspace_inputs();
 void process_sell_roomspace_inputs();
@@ -160,9 +161,9 @@ void reset_dungeon_build_room_ui_variables(NetUserId user);
 
 void update_slab_grid(struct RoomSpace* roomspace, unsigned char mode, TbBool sell);
 
-TbBool roomspace_can_build_room_at_slab(PlayerNumber plyr_idx, RoomKind rkind, MapSlabCoord slb_x, MapSlabCoord slb_y);
+TbBool roomspace_can_build_room_at_slab(const struct RoomSpace *roomspace, MapSlabCoord slb_x, MapSlabCoord slb_y);
 void detect_roomspace_direction(struct RoomSpace *roomspace);
-void detect_bridge_shape(PlayerNumber plyr_idx);
+void detect_bridge_shape(NetUserId user);
 TbBool roomspace_liquid_path_is_blocked(PlayerNumber plyr_idx, MapSlabCoord start, MapSlabCoord end, MapSlabCoord other_axis, TbBool vertical);
 TbBool roomspace_slab_blocks_bridge(PlayerNumber plyr_idx, MapSlabCoord slb_x, MapSlabCoord slb_y);
 

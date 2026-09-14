@@ -274,7 +274,7 @@ TbBool control_creature_as_controller(struct PlayerInfo *player, struct Thing *t
     {
         internal_set_thing_state(thing, CrSt_CreaturePretendChickenSetupMove);
     }
-    set_user_view_type(get_player_primary_user(player), PVT_CreatureContrl);
+    set_player_users_view_type(player,PVT_CreatureContrl);
     if (thing_is_creature(thing))
     {
         cctrl->max_speed = calculate_correct_creature_maxspeed(thing);
@@ -319,7 +319,7 @@ TbBool control_creature_as_passenger(struct PlayerInfo *player, struct Thing *th
         struct Camera* cam = get_player_active_camera(player);
     if (cam != NULL)
       ustate->view_mode_restore = cam->view_mode;
-    set_user_view_type(get_player_primary_user(player), PVT_CreaturePasngr);
+    set_player_users_view_type(player,PVT_CreaturePasngr);
     thing->rendering_flags |= TRF_Invisible;
     return true;
 }
@@ -3334,16 +3334,16 @@ void prepare_to_controlled_creature_death(struct Thing *thing)
     player->influenced_thing_idx = 0;
     player->influenced_thing_creation = 0;
     set_camera_zoom(get_player_active_camera(player), ustate->dungeon_camera_zoom);
-    sync_local_camera(get_player_primary_user(player));
+    sync_local_camera(get_player_local_or_primary_user(player));
     if (is_my_player(player)) {
         turn_off_all_window_menus();
         turn_off_query_menus();
         turn_on_main_panel_menu();
         set_flag_value(game.operation_flags, GOF_ShowPanel, (game.operation_flags & GOF_ShowGui) != 0);
-        PaletteSetUserPalette(get_player_primary_user(player), engine_palette);
+        PaletteSetUserPalette(get_local_user(), engine_palette);
         local_state.palette_fade_step_possession = 11;
     }
-    turn_user_cursor_light(get_player_primary_user(player), true);
+    turn_player_users_cursor_light(player, true);
 }
 
 void delete_armour_effects_attached_to_creature(struct Thing *thing)
@@ -6537,19 +6537,22 @@ TngUpdateRet update_creature(struct Thing *thing)
             }
         }
         struct PlayerInfo* player = get_player(thing->owner);
-        struct UserState* ustate = get_player_user_state(player);
-        if (creature_under_spell_effect(thing, CSAfF_Freeze))
+        if (is_my_player(player))
         {
-            if (!flag_is_set(ustate->additional_flags, UsrAF_FreezePaletteIsActive))
+            struct UserState* ustate = get_local_user_state();
+            if (creature_under_spell_effect(thing, CSAfF_Freeze))
             {
-                PaletteSetUserPalette(get_player_primary_user(player), blue_palette);
+                if (!flag_is_set(ustate->additional_flags, UsrAF_FreezePaletteIsActive))
+                {
+                    PaletteSetUserPalette(get_local_user(), blue_palette);
+                }
             }
-        }
-        else
-        {
-            if (flag_is_set(ustate->additional_flags, UsrAF_FreezePaletteIsActive))
+            else
             {
-                PaletteSetUserPalette(get_player_primary_user(player), engine_palette);
+                if (flag_is_set(ustate->additional_flags, UsrAF_FreezePaletteIsActive))
+                {
+                    PaletteSetUserPalette(get_local_user(), engine_palette);
+                }
             }
         }
     } else

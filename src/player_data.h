@@ -191,8 +191,6 @@ struct PlayerInfo {
     uint32_t isometric_view_zoom_level;
     uint32_t frontview_zoom_level;
     unsigned char hand_idx;
-    /** Deferred build/sell in progress. Per player: the dungeon is what gets built. */
-    struct RoomSpace roomspace;
     unsigned char player_type; //enum PlayerTypes
     ThingModel special_digger;
     unsigned short generate_speed;
@@ -257,6 +255,7 @@ struct UserState {
     char view_mode_restore;
     int32_t dungeon_camera_zoom;
     struct RoomSpace render_roomspace;
+    struct RoomSpace roomspace; // deferred build/sell in progress
     unsigned char roomspace_mode;
     int user_defined_roomspace_width;
     int roomspace_detection_looseness;
@@ -340,6 +339,8 @@ TbBool player_is_keeper(PlayerNumber plyr_num);
 TbBool player_is_neutral(PlayerNumber plyr_num);
 
 void set_user_work_state(NetUserId user, short nwrk_state, int32_t chosen_kind);
+void set_player_users_view_type(const struct PlayerInfo *player, unsigned short nview);
+void set_player_users_work_state(const struct PlayerInfo *player, short nwrk_state, int32_t chosen_kind);
 void set_user_view_type(NetUserId user, unsigned short nview);
 void reset_user_view_type(NetUserId user, unsigned short nview);
 

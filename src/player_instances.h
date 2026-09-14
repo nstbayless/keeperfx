@@ -21,6 +21,7 @@
 
 #include "bflib_basics.h"
 #include "globals.h"
+#include "net_main.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,6 +91,9 @@ struct PlayerInstanceInfo { // sizeof = 44
 extern struct PlayerInstanceInfo player_instance_info[PLAYER_INSTANCES_COUNT];
 /******************************************************************************/
 void set_player_instance(struct PlayerInfo *player, long ninum, TbBool force);
+void reset_player_instance_users(void);
+void set_applying_user(NetUserId user);
+NetUserId get_player_instance_user(PlayerNumber plyr_idx);
 void process_player_instance(struct PlayerInfo *player);
 void process_player_instances(void);
 

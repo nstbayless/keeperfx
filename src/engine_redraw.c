@@ -533,6 +533,15 @@ long dummy_sound_line_of_sight(long a1, long a2, long a3, long a4, long a5, long
     return 1;
 }
 
+void set_player_users_engine_view(const struct PlayerInfo *player, long val)
+{
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        if (game.user_states[user].player_id == player->id_number) {
+            set_user_engine_view(user, val);
+        }
+    }
+}
+
 void set_user_engine_view(NetUserId user, long val)
 {
     struct UserState *ustate = get_user_state(user);
@@ -797,7 +806,7 @@ void process_dungeon_top_pointer_graphic(struct PlayerInfo *player)
 {
     struct Thing *thing;
     struct Dungeon* dungeon = get_dungeon(player->id_number);
-    struct UserState* ustate = get_player_user_state(player);
+    struct UserState* ustate = get_user_state(get_player_local_or_primary_user(player));
     struct PlayerStateConfigStats* plrst_cfg_stat = get_player_state_stats(ustate->work_state);
     if (dungeon_invalid(dungeon))
     {

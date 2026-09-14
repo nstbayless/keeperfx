@@ -1946,6 +1946,11 @@ static short process_command_line(unsigned short argc, char *argv[])
           autostart_multiplayer_users_expected = clamp(atoi(pr2str), MIN_NET_USERS, MAX_NET_USERS);
           narg++;
       }
+      else if (strcasecmp(parstr,"inputlag") == 0)
+      {
+          forced_input_lag_turns = clamp(atoi(pr2str), 0, MAXIMUM_INPUT_LAG_TURNS);
+          narg++;
+      }
       else if (strcasecmp(parstr,"server") == 0)
       {
           game_flags2 |= GF2_Server;

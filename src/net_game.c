@@ -57,6 +57,7 @@ extern "C" {
 #endif
 /******************************************************************************/
 struct TbNetworkUserInfo net_user_info[MAX_NET_USERS];
+int forced_input_lag_turns = -1; // -inputlag N; debugging aid
 extern int32_t multiplayer_speed_adjustment_ns;
 /******************************************************************************/
 
@@ -186,6 +187,9 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
             {
                 init_local_user_view();
                 init_local_cameras(player);
+                struct Dungeon *dungeon = get_players_dungeon(player);
+                game.creatures_tend_imprison = (dungeon->creature_tendencies & CrTend_Imprison) != 0;
+                game.creatures_tend_flee = (dungeon->creature_tendencies & CrTend_Flee) != 0;
             }
             continue;
         }
@@ -285,6 +289,9 @@ static uint8_t calculate_initial_input_lag(void)
     if (input_lag_turns > MAXIMUM_INPUT_LAG_TURNS) {
         input_lag_turns = MAXIMUM_INPUT_LAG_TURNS;
     }
+    if (forced_input_lag_turns >= 0) {
+        input_lag_turns = forced_input_lag_turns;
+    }
     JUSTLOG("Initial input lag: (%llu ms * %d turns/s + 999) / 1000 = %llu turns, adjusted to %llu", (unsigned long long)ping, turns_per_second, (unsigned long long)uncapped_input_lag_turns, (unsigned long long)input_lag_turns);
     return input_lag_turns;
 }
@@ -319,6 +326,7 @@ static void setup_network_player_numbers(const PlayerNumber force[MAX_NET_USERS]
 {
     SYNCDBG(6, "Starting");
     announced_dropped_users = 0;
+    reset_player_instance_users();
     TbBool slot_in_use[PLAYERS_COUNT] = {false};
     for (NetUserId i = 0; i < MAX_NET_USERS; i++)
     {
@@ -738,6 +746,7 @@ void process_user_leave_game_packet(NetUserId user)
         } else {
             quit_game = 1;
         }
+        get_my_player()->display_flags |= PlaF6_PlyrHasQuit;
         get_my_player()->allocflags &= ~PlaF_Allocated;
         return;
     }
@@ -753,6 +762,9 @@ void process_user_leave_game_packet(NetUserId user)
     // note: packet processed in sync with simulation, it's okay to do this.
     OnDroppedUser(user, NETDROP_MANUAL);
     struct PlayerInfo *abandoned = drop_network_user(user);
+    if (abandoned != NULL) {
+        abandoned->display_flags |= PlaF6_PlyrHasQuit;
+    }
     leave_network_if_alone(abandoned);
 }
 

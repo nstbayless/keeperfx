@@ -118,7 +118,7 @@ extern "C" {
 #endif
 /******************************************************************************/
 extern TbBool process_user_global_cheats_packet_action(NetUserId user, struct Packet* pckt);
-extern TbBool process_players_dungeon_control_cheats_packet_action(PlayerNumber plyr_idx, struct Packet* pckt);
+extern TbBool process_user_dungeon_control_cheats_packet_action(NetUserId user, struct Packet* pckt);
 /******************************************************************************/
 TbBool unpausing_in_progress = 0;
 float camera_movement_x = 0.0f;
@@ -752,13 +752,13 @@ TbBool process_user_global_packet_action(NetUserId user)
       memset(player->mp_message_text, 0, PLAYER_MP_MESSAGE_LEN);
       return 0;
   case PckA_ToggleLights:
-      if (is_my_player(player))
+      if (user == get_local_user())
       {
           light_set_lights_on(game.lish.light_enabled == 0);
       }
       return 1;
   case PckA_SwitchScrnRes:
-      if (is_my_player(player))
+      if (user == get_local_user())
       {
           switch_to_next_video_mode_wrapper();
       }
@@ -767,28 +767,28 @@ TbBool process_user_global_packet_action(NetUserId user)
       process_pause_packet(pckt->actn_par1, 0);
       return 1;
   case PckA_SetCluedo:
-      if (is_my_player(player))
+      if (user == get_local_user())
       {
         settings.video_cluedo_mode = pckt->actn_par1;
         save_settings();
       }
       return 0;
   case PckA_ChangeWindowSize:
-      if (is_my_player(player))
+      if (user == get_local_user())
       {
         change_engine_window_relative_size(pckt->actn_par1, pckt->actn_par2);
         centre_engine_window();
       }
       return 0;
   case PckA_SetGammaLevel:
-      if (is_my_player(player))
+      if (user == get_local_user())
       {
         set_gamma(pckt->actn_par1, 1);
         save_settings();
       }
       return 0;
   case PckA_SetMinimapConf:
-      if (is_my_player(player))
+      if (user == get_local_user())
       {
         local_state.minimap_zoom = pckt->actn_par1;
         settings.minimap_zoom = local_state.minimap_zoom;
@@ -1018,7 +1018,7 @@ TbBool process_user_global_packet_action(NetUserId user)
     }
     case PckA_RoomspaceHighlightToggle:
     {
-        if (is_my_player(player))
+        if (user == get_local_user())
         {
             settings.highlight_mode = pckt->actn_par1;
             if (default_tag_mode == 3)
@@ -1195,7 +1195,7 @@ TbBool process_user_dungeon_control_packet_action(NetUserId user)
         toggle_computer_player(plyr_idx);
         break;
     default:
-        return process_players_dungeon_control_cheats_packet_action(plyr_idx, pckt);
+        return process_user_dungeon_control_cheats_packet_action(user, pckt);
     }
     return true;
 }
@@ -1683,7 +1683,9 @@ void process_packets(void)
         }
         struct PlayerInfo* packet_player = get_player(plyr_idx);
         if (player_exists(packet_player) && ((packet_player->allocflags & PlaF_CompCtrl) == 0)) {
+            set_applying_user(user);
             process_user_packet(user);
+            set_applying_user(-1);
         }
     }
     update_local_dig_prediction_cursor_preview();

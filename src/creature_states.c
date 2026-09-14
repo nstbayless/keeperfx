@@ -2690,8 +2690,7 @@ TbBool find_random_valid_position_for_thing_in_room_avoiding_object(struct Thing
     // Get the selected index
     while (i != 0)
     {
-        struct PlayerInfo *player = get_player(room->owner);
-        if (player->roomspace.is_active)
+        if (player_has_roomspace_in_progress(room->owner))
         {
             MapSlabCoord slb_x = slb_num_decode_x(i);
             MapSlabCoord slb_y = slb_num_decode_y(i);

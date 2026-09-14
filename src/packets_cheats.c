@@ -77,7 +77,7 @@ TbBool packets_process_cheats(
     {
         case PSt_MkDigger:
         ustate->render_roomspace = create_box_roomspace(ustate->render_roomspace, 1, 1, slb_x, slb_y);
-        allowed = tag_cursor_blocks_place_thing(plyr_idx, stl_x, stl_y);
+        allowed = tag_cursor_blocks_place_thing(user, plyr_idx, stl_x, stl_y);
         clear_messages_from_player(MsgType_Player, ustate->cheatselection.chosen_player);
         targeted_message_add(MsgType_Player, ustate->cheatselection.chosen_player, plyr_idx, 1, "%d", ustate->cheatselection.chosen_experience_level + 1);
         if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
@@ -88,7 +88,7 @@ TbBool packets_process_cheats(
             }
             else
             {
-                if (is_my_player(player))
+                if (user == get_local_user())
                 {
                     play_non_3d_sample(snd_refusal);
                 }
@@ -98,7 +98,7 @@ TbBool packets_process_cheats(
         break;
         case PSt_MkGoodCreatr:
         ustate->render_roomspace = create_box_roomspace(ustate->render_roomspace, 1, 1, slb_x, slb_y);
-        allowed = tag_cursor_blocks_place_thing(plyr_idx, stl_x, stl_y);
+        allowed = tag_cursor_blocks_place_thing(user, plyr_idx, stl_x, stl_y);
         clear_messages_from_player(MsgType_Player, ustate->cheatselection.chosen_player);
         if (ustate->cheatselection.chosen_hero_kind == 0)
         {
@@ -147,7 +147,7 @@ TbBool packets_process_cheats(
             }
             else
             {
-                if (is_my_player(player))
+                if (user == get_local_user())
                 {
                     play_non_3d_sample(snd_refusal);
                 }
@@ -157,7 +157,7 @@ TbBool packets_process_cheats(
         break;
         case PSt_MkGoldPot:
         ustate->render_roomspace = create_box_roomspace(ustate->render_roomspace, 1, 1, slb_x, slb_y);
-        allowed = tag_cursor_blocks_place_thing(plyr_idx, stl_x, stl_y);
+        allowed = tag_cursor_blocks_place_thing(user, plyr_idx, stl_x, stl_y);
         if (((pckt->control_flags & PCtr_LBtnRelease) != 0) && ((pckt->control_flags & PCtr_MapCoordsValid) != 0))
         {
             if (allowed)
@@ -181,7 +181,7 @@ TbBool packets_process_cheats(
             }
             else
             {
-                if (is_my_player(player))
+                if (user == get_local_user())
                 {
                     play_non_3d_sample(snd_refusal);
                 }
@@ -199,7 +199,7 @@ TbBool packets_process_cheats(
         if (thing_is_creature(thing))
         {
             ustate->render_roomspace = create_box_roomspace(ustate->render_roomspace, 1, 1, slb_x, slb_y);
-            allowed = tag_cursor_blocks_order_creature(plyr_idx, stl_x, stl_y, thing);
+            allowed = tag_cursor_blocks_order_creature(user, plyr_idx, stl_x, stl_y, thing);
         }
         else
         {
@@ -232,7 +232,7 @@ TbBool packets_process_cheats(
               }
               else
               {
-                if (is_my_player(player))
+                if (user == get_local_user())
                 {
                     play_non_3d_sample(snd_refusal);
                 }
@@ -255,7 +255,7 @@ TbBool packets_process_cheats(
         break;
         case PSt_MkBadCreatr:
         ustate->render_roomspace = create_box_roomspace(ustate->render_roomspace, 1, 1, slb_x, slb_y);
-        allowed = tag_cursor_blocks_place_thing(plyr_idx, stl_x, stl_y);
+        allowed = tag_cursor_blocks_place_thing(user, plyr_idx, stl_x, stl_y);
         clear_messages_from_player(MsgType_Player, ustate->cheatselection.chosen_player);
         if (ustate->cheatselection.chosen_creature_kind == 0)
         {
@@ -298,7 +298,7 @@ TbBool packets_process_cheats(
             }
             else
             {
-                if (is_my_player(player))
+                if (user == get_local_user())
                 {
                     play_non_3d_sample(snd_refusal);
                 }
@@ -474,7 +474,7 @@ TbBool packets_process_cheats(
             }
             else
             {
-                if (is_my_player(player))
+                if (user == get_local_user())
                 {
                     play_non_3d_sample(snd_refusal);
                 }
@@ -598,7 +598,7 @@ TbBool packets_process_cheats(
                 thing = thing_get(player->controlled_thing_idx);
                 if ((pckt->control_flags & PCtr_RBtnRelease) != 0)
                 {
-                    if (is_my_player(player))
+                    if (user == get_local_user())
                     {
                         turn_off_query_menus();
                         turn_on_main_panel_menu();
@@ -609,7 +609,7 @@ TbBool packets_process_cheats(
                 if (creature_is_dying(thing))
                 {
                     set_player_instance(player, PI_UnqueryCrtr, 0);
-                    if (is_my_player(player))
+                    if (user == get_local_user())
                     {
                         turn_off_query_menus();
                         turn_on_main_panel_menu();
@@ -647,7 +647,7 @@ TbBool packets_process_cheats(
         case PSt_PlaceTerrain:
         {
             ustate->render_roomspace = create_box_roomspace(ustate->render_roomspace, 1, 1, slb_x, slb_y);
-            tag_cursor_blocks_place_terrain(plyr_idx, stl_x, stl_y);
+            tag_cursor_blocks_place_terrain(user, plyr_idx, stl_x, stl_y);
             struct SlabConfigStats* slab_cfgstats;
             clear_messages_from_player(MsgType_Player, ustate->cheatselection.chosen_player);
             struct SlabConfigStats *slabst = get_slab_kind_stats(ustate->cheatselection.chosen_terrain_kind);
@@ -935,10 +935,10 @@ TbBool process_user_global_cheats_packet_action(NetUserId user, struct Packet* p
   }
 }
 
-TbBool process_players_dungeon_control_cheats_packet_action(PlayerNumber plyr_idx, struct Packet* pckt)
+TbBool process_user_dungeon_control_cheats_packet_action(NetUserId user, struct Packet* pckt)
 {
-    struct PlayerInfo* player = get_player(plyr_idx);
-    struct UserState* ustate = get_player_user_state(player);
+    PlayerNumber plyr_idx = get_net_user_player_number(user);
+    struct UserState* ustate = get_user_state(user);
     MapCoord x, y;
     struct Thing* thing;
     MapSubtlCoord stl_x, stl_y;
@@ -1008,7 +1008,7 @@ TbBool process_players_dungeon_control_cheats_packet_action(PlayerNumber plyr_id
                     pos.x.val = subtile_coord_center(slab_subtile_center(subtile_slab(stl_x)));
                     pos.y.val = subtile_coord_center(slab_subtile_center(subtile_slab(stl_y)));
                     pos.z.val = subtile_coord_center(1);
-                    if (is_my_player(player))
+                    if (user == get_local_user())
                     {
                         play_non_3d_sample(snd_spell_stars);
                     }
@@ -1016,7 +1016,7 @@ TbBool process_players_dungeon_control_cheats_packet_action(PlayerNumber plyr_id
                 }
                 else
                 {
-                    if (is_my_player(player))
+                    if (user == get_local_user())
                     {
                         play_non_3d_sample(snd_spell_wall);
                     }
@@ -1059,7 +1059,7 @@ TbBool process_players_dungeon_control_cheats_packet_action(PlayerNumber plyr_id
             {
                 if (pckt->actn_par2)
                 {
-                    if (is_my_player(player))
+                    if (user == get_local_user())
                     {
                         play_non_3d_sample(snd_room_claim);
                     }

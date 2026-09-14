@@ -59,6 +59,7 @@ void init_players(void);
 void init_player(struct PlayerInfo *player, short no_explore);
 void init_user_state(NetUserId user, PlayerNumber player_id);
 void turn_user_cursor_light(NetUserId user, TbBool turn_on);
+void turn_player_users_cursor_light(const struct PlayerInfo *player, TbBool turn_on);
 void init_local_user_view(void);
 void init_user_defaults(NetUserId user);
 void post_init_players(void);

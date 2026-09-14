@@ -42,6 +42,7 @@ void store_engine_window(TbGraphicsWindow *ewnd,int divider);
 void load_engine_window(TbGraphicsWindow *ewnd);
 
 void set_user_engine_view(NetUserId user, long val);
+void set_player_users_engine_view(const struct PlayerInfo *player, long val);
 
 void draw_overlay_compass(long a1, long a2);
 

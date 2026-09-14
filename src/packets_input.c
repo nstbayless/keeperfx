@@ -169,7 +169,7 @@ TbBool process_dungeon_control_packet_dungeon_build_room(NetUserId user)
             struct Dungeon* dungeon = get_dungeon(player->id_number);
             if (ustate->render_roomspace.total_roomspace_cost > dungeon->total_money_owned)
             {
-                if (is_my_player(player))
+                if (user == get_local_user())
                 {
                     output_message(SMsg_GoldNotEnough, 0);
                 }
@@ -177,7 +177,7 @@ TbBool process_dungeon_control_packet_dungeon_build_room(NetUserId user)
         }
         else
         {
-            if (is_my_player(player))
+            if (user == get_local_user())
             {
                 play_non_3d_sample(snd_refusal);
             }
@@ -191,7 +191,7 @@ TbBool process_dungeon_control_packet_dungeon_build_room(NetUserId user)
     }
     else
     {
-        if (is_my_player(player))
+        if (user == get_local_user())
         {
             play_non_3d_sample(snd_refusal);
         }
@@ -240,7 +240,7 @@ TbBool process_dungeon_power_hand_state(NetUserId user)
         {
             ustate->render_roomspace = create_box_roomspace(ustate->render_roomspace, 1, 1, subtile_slab(stl_x), subtile_slab(stl_y));
             ustate->full_slab_cursor = (ustate->roomspace_mode != single_subtile_mode);
-            tag_cursor_blocks_thing_in_hand(plyr_idx, stl_x, stl_y, allow_unclaimed_path, ustate->full_slab_cursor);
+            tag_cursor_blocks_thing_in_hand(user, plyr_idx, stl_x, stl_y, allow_unclaimed_path, ustate->full_slab_cursor);
         } else
         {
             ustate->additional_flags |= UsrAF_ChosenSubTileIsHigh;
@@ -328,7 +328,7 @@ TbBool process_dungeon_control_packet_dungeon_control(NetUserId user)
                     {
                         if (at_limit)
                         {
-                            if (is_my_player(player))
+                            if (user == get_local_user())
                             {
                                 play_non_3d_sample(snd_refusal);
                                 output_message(SMsg_WorkerJobsLimit, 500); // remind the user that the task limit (MAPTASKS_COUNT) has been reached
@@ -355,7 +355,7 @@ TbBool process_dungeon_control_packet_dungeon_control(NetUserId user)
                         {
                             if (at_limit)
                             {
-                                if (is_my_player(player))
+                                if (user == get_local_user())
                                 {
                                     play_non_3d_sample(snd_refusal);
                                     output_message(SMsg_WorkerJobsLimit, 500); // remind the user that the task limit (MAPTASKS_COUNT) has been reached
@@ -448,7 +448,7 @@ TbBool process_dungeon_control_packet_dungeon_control(NetUserId user)
                 {
                     if (ustate->thing_under_hand != player->controlled_thing_idx)
                     {
-                        if (is_my_player(player))
+                        if (user == get_local_user())
                         {
                             turn_off_all_panel_menus();
                             turn_on_menu(GMnu_CREATURE_QUERY1);
@@ -472,7 +472,7 @@ TbBool process_dungeon_control_packet_dungeon_control(NetUserId user)
                     {
                         if (at_limit)
                         {
-                            if (is_my_player(player))
+                            if (user == get_local_user())
                             {
                                 play_non_3d_sample(snd_refusal);
                                 output_message(SMsg_WorkerJobsLimit, 500); // remind the user that the task limit (MAPTASKS_COUNT) has been reached
@@ -695,7 +695,7 @@ TbBool process_dungeon_control_packet_dungeon_place_trap(NetUserId user)
     }
     if (can_place == 0)
     {
-        if (is_my_player(player))
+        if (user == get_local_user())
             play_non_3d_sample(snd_refusal);
         unset_packet_control(pckt, PCtr_LBtnClick);
         return false;
@@ -735,7 +735,7 @@ TbBool process_dungeon_control_packet_clicks(NetUserId user)
     {
         ustate->boxsize = 1;
     }
-    if (player->id_number == my_player_number)
+    if (user == get_local_user())
     {
         map_volume_box.visible = 0;
     }
@@ -849,7 +849,7 @@ TbBool process_dungeon_control_packet_clicks(NetUserId user)
                 thing = thing_get(player->controlled_thing_idx);
                 if ((pckt->control_flags & PCtr_RBtnRelease) != 0)
                 {
-                    if (is_my_player(player))
+                    if (user == get_local_user())
                     {
                         turn_off_query_menus();
                         turn_on_main_panel_menu();
@@ -860,7 +860,7 @@ TbBool process_dungeon_control_packet_clicks(NetUserId user)
                 if (creature_is_dying(thing) || (thing->creation_turn != player->influenced_thing_creation))
                 {
                     set_player_instance(player, PI_UnqueryCrtr, 0);
-                    if (is_my_player(player))
+                    if (user == get_local_user())
                     {
                         turn_off_query_menus();
                         turn_on_main_panel_menu();
@@ -877,7 +877,7 @@ TbBool process_dungeon_control_packet_clicks(NetUserId user)
             {
                 ustate->full_slab_cursor = 1;
                 // Make the frame around active slab
-                i = tag_cursor_blocks_place_door(player->id_number, stl_x, stl_y);
+                i = tag_cursor_blocks_place_door(user, player->id_number, stl_x, stl_y);
                 if ((pckt->control_flags & PCtr_LBtnClick) != 0)
                 {
                     packet_place_door(stl_x, stl_y, player->id_number, ustate->chosen_door_kind, i);

@@ -847,7 +847,7 @@ long player_state_to_packet(PlayerState work_state, PowerKind pwkind, TbBool alr
 
 TbBool set_players_packet_change_spell(struct PlayerInfo *player,PowerKind pwkind)
 {
-    struct UserState* ustate = get_player_user_state(player);
+    struct UserState* ustate = get_user_state(get_player_local_or_primary_user(player));
     if (power_is_instinctive(game.chosen_spell_type) && (game.chosen_spell_type != 0))
         return false;
     const struct PowerConfigStats *powerst;

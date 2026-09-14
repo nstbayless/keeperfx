@@ -764,6 +764,15 @@ void init_keeper_map_exploration_by_creatures(struct PlayerInfo *player)
     do_to_players_all_creatures_of_model(player->id_number, CREATURE_ANY, check_map_explored_at_current_pos);
 }
 
+void turn_player_users_cursor_light(const struct PlayerInfo *player, TbBool turn_on)
+{
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        if (game.user_states[user].player_id == player->id_number) {
+            turn_user_cursor_light(user, turn_on);
+        }
+    }
+}
+
 void turn_user_cursor_light(NetUserId user, TbBool turn_on)
 {
     const int idx = get_user_state(user)->cursor_light_idx;
@@ -1148,6 +1157,7 @@ void init_players_local_game(void)
     player->id_number = my_player_number;
     player->allocflags |= PlaF_Allocated;
     init_user_state(SOLO_HUMAN_ID, player->id_number);
+    reset_player_instance_users();
 
     if( player->id_number == PLAYER_GOOD)
     {

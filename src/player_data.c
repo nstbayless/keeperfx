@@ -586,6 +586,24 @@ void set_user_view_type(NetUserId user, unsigned short nview)
   }
 }
 
+void set_player_users_view_type(const struct PlayerInfo *player, unsigned short nview)
+{
+  for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+    if (game.user_states[user].player_id == player->id_number) {
+      set_user_view_type(user, nview);
+    }
+  }
+}
+
+void set_player_users_work_state(const struct PlayerInfo *player, short nwrk_state, int32_t chosen_kind)
+{
+  for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+    if (game.user_states[user].player_id == player->id_number) {
+      set_user_work_state(user, nwrk_state, chosen_kind);
+    }
+  }
+}
+
 void reset_user_view_type(NetUserId user, unsigned short nview)
 {
   struct UserState* ustate = get_user_state(user);

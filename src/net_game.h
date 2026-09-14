@@ -37,6 +37,7 @@ struct PlayerInfo;
 
 /******************************************************************************/
 extern struct TbNetworkUserInfo net_user_info[MAX_NET_USERS];
+extern int forced_input_lag_turns;
 
 #pragma pack()
 /******************************************************************************/

@@ -110,20 +110,12 @@ TbBool network_is_host(void)
     return netstate.my_id == SERVER_ID;
 }
 
-// map NetUserId -> PlayerNumber, or -1 for a user without a player.
-// Currently, this mapping is 1-1.
-// Potential future work: "archon mode" (multiple users share a player)
-static PlayerNumber net_user_player_number[MAX_NET_USERS];
-
 PlayerNumber get_net_user_player_number(NetUserId user)
 {
-    if (!network_is_active()) {
-        return (user == SOLO_HUMAN_ID) ? my_player_number : -1;
-    }
     if ((user < 0) || (user >= MAX_NET_USERS)) {
-        return -1;
+        return PLAYER_NONE;
     }
-    return net_user_player_number[user];
+    return game.user_states[user].player_id;
 }
 
 // user exists to the game layer (even if their connection has dropped,
@@ -134,7 +126,7 @@ TbBool user_present(NetUserId user)
     if (!network_is_active() || (user < 0) || (user >= MAX_NET_USERS)) {
         return false;
     }
-    return net_user_player_number[user] >= 0;
+    return game.user_states[user].player_id != PLAYER_NONE;
 }
 
 static void setup_players_from_startup_packets(const struct StartupSyncPacket startup_sync_packets[MAX_NET_USERS])
@@ -149,18 +141,18 @@ static void setup_players_from_startup_packets(const struct StartupSyncPacket st
             continue;
         }
         struct PlayerInfo *player = get_player(k);
+        struct UserState* ustate = get_user_state(i);
         player->id_number = k;
-        player->user_id = i;
         player->allocflags |= PlaF_Allocated;
+        init_user_state(i, k);
         switch (sync->video_rotate_mode) {
-            case 0: player->view_mode_restore = PVM_IsoWibbleView; break;
-            case 1: player->view_mode_restore = PVM_IsoStraightView; break;
-            case 2: player->view_mode_restore = PVM_FrontView; break;
-            default: player->view_mode_restore = PVM_IsoWibbleView; break;
+            case 0: ustate->view_mode_restore = PVM_IsoWibbleView; break;
+            case 1: ustate->view_mode_restore = PVM_IsoStraightView; break;
+            case 2: ustate->view_mode_restore = PVM_FrontView; break;
+            default: ustate->view_mode_restore = PVM_IsoWibbleView; break;
         }
         player->is_active = 1;
         init_player(player, 0);
-        init_user_state(player->user_id);
         player->isometric_view_zoom_level = sync->isometric_view_zoom_level;
         player->frontview_zoom_level = sync->frontview_zoom_level;
         TbBool imprison = (sync->initial_tendencies & CrTend_Imprison) != 0;
@@ -314,10 +306,10 @@ static void setup_network_player_numbers(void)
     SYNCDBG(6, "Starting");
     for (NetUserId i = 0; i < MAX_NET_USERS; i++)
     {
-        net_user_player_number[i] = -1;
+        game.user_states[i].player_id = PLAYER_NONE;
         if (net_user_info[i].network_user_active)
         {
-            net_user_player_number[i] = k;
+            game.user_states[i].player_id = k;
             if ((!is_set) && (my_player_number == i))
             {
                 is_set = true;
@@ -437,7 +429,7 @@ static TbBool player_has_enemies_to_defeat(const struct PlayerInfo *player)
     for (int i = 0; i < PLAYERS_COUNT; i++) {
         struct PlayerInfo *other = get_player(i);
         TbBool is_active_enemy = player_exists(other) && (other != player) && other->is_active == 1 && !player_cannot_win(other->id_number) && players_are_enemies(player->id_number, other->id_number);
-        TbBool is_human_driven = (other->allocflags & PlaF_CompCtrl) == 0 && user_present(other->user_id);
+        TbBool is_human_driven = (other->allocflags & PlaF_CompCtrl) == 0 && get_player_primary_user(other) >= 0;
         TbBool is_initial_computer_player = (other->allocflags & PlaF_CompCtrl) != 0 && i >= game.active_players_count;
         if (is_active_enemy && (is_human_driven || is_initial_computer_player)) {
             return true;
@@ -480,7 +472,9 @@ static void stop_network_game_state(void)
     memset(net_user_info, 0, sizeof(net_user_info));
     clear_flag(game.system_flags, GSF_NetworkActive);
     struct PlayerInfo *myplyr = get_my_player();
-    NetUserId old_user = myplyr->user_id;
+    
+    // move to SOLO slot, remove all other users.
+    NetUserId old_user = netstate.my_id;
     for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
         if (user == old_user) {
             continue;
@@ -490,19 +484,15 @@ static void stop_network_game_state(void)
             light_delete_light(ustate->cursor_light_idx);
         }
         memset(ustate, 0, sizeof(*ustate));
+        ustate->player_id = PLAYER_NONE;
     }
     struct UserState *old_state = get_user_state(old_user);
     if ((old_user != SOLO_HUMAN_ID) && !user_state_invalid(old_state)) {
         *get_user_state(SOLO_HUMAN_ID) = *old_state;
         memset(old_state, 0, sizeof(*old_state));
+        old_state->player_id = PLAYER_NONE;
     }
-    for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++) {
-        struct PlayerInfo *player = get_player(plyr_idx);
-        if (player != myplyr) {
-            player->user_id = -1;
-        }
-    }
-    myplyr->user_id = SOLO_HUMAN_ID;
+    get_user_state(SOLO_HUMAN_ID)->player_id = myplyr->id_number;
     if (myplyr->roomspace.is_active && (myplyr->roomspace.user == old_user)) {
         myplyr->roomspace.user = SOLO_HUMAN_ID;
     }
@@ -546,6 +536,7 @@ static TbBool host_already_won_level(void)
     return false;
 }
 
+// decide victories for player whose opponents have departed
 static void resolve_disconnect_victories(struct PlayerInfo *departed)
 {
     for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++) {
@@ -570,12 +561,16 @@ static void resolve_disconnect_victories(struct PlayerInfo *departed)
             }
         }
         resolve_network_quit_outcome(player);
-        if (winning_quit && (plyr_count > 1) && is_my_player(player)) {
-            struct UserState *ustate = get_local_user_state();
-            if (game.conf.rules[plyr_idx].gameplay.winner_tortures_loser) {
-                ustate->additional_flags |= UsrAF_UnlockedLordTorture;
-            } else {
-                ustate->additional_flags &= ~UsrAF_UnlockedLordTorture;
+        if (winning_quit && (plyr_count > 1)) {
+            for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+                if (game.user_states[user].player_id != plyr_idx) {
+                    continue;
+                }
+                if (game.conf.rules[plyr_idx].gameplay.winner_tortures_loser) {
+                    game.user_states[user].additional_flags |= UsrAF_UnlockedLordTorture;
+                } else {
+                    game.user_states[user].additional_flags &= ~UsrAF_UnlockedLordTorture;
+                }
             }
         }
     }
@@ -601,19 +596,25 @@ static void abandon_network_player(struct PlayerInfo *player, TbBool announce)
     resolve_disconnect_victories(player);
 }
 
-static struct PlayerInfo *remove_user_from_game(NetUserId user, TbBool announce)
+// Take a user out of the game: their player is handed to the AI, or written
+// off if their fate was already decided. Nothing here touches the transport.
+static struct PlayerInfo *remove_user_from_game(NetUserId user)
 {
-    if ((user < 0) || (user >= MAX_NET_USERS) || (net_user_player_number[user] < 0)) {
+    struct UserState *ustate = get_user_state(user);
+    if (user_state_invalid(ustate) || (ustate->player_id == PLAYER_NONE)) {
         return NULL;
     }
-    struct PlayerInfo *player = get_player(net_user_player_number[user]);
-    JUSTLOG("u:%d user left the game (player %d)", (int)user, (int)net_user_player_number[user]);
-    net_user_player_number[user] = -1;
-    if (!player_exists(player)) {
+    struct PlayerInfo *player = get_player(ustate->player_id);
+    JUSTLOG("u:%d user left the game (player %d)", (int)user, (int)ustate->player_id);
+    if (ustate->cursor_light_idx != 0) {
+        light_delete_light(ustate->cursor_light_idx);
+    }
+    memset(ustate, 0, sizeof(*ustate));
+    ustate->player_id = PLAYER_NONE;
+    if (!player_exists(player) || (get_player_primary_user(player) >= 0)) {
         return NULL;
     }
-    player->user_id = -1;
-    abandon_network_player(player, announce);
+    abandon_network_player(player, user != SERVER_ID);
     return player;
 }
 
@@ -635,22 +636,30 @@ static void leave_network_if_alone(const struct PlayerInfo *departed)
     }
 }
 
-void process_player_leave_game_packet(struct PlayerInfo *player)
+void process_user_leave_game_packet(NetUserId user)
 {
-    if (player != get_my_player()) {
+    if (user == get_local_user()) {
         if (network_is_active()) {
-            NetUserId user = player->user_id;
-            OnDroppedUser(user, NETDROP_MANUAL);
-            struct PlayerInfo *abandoned = remove_user_from_game(user, user != SERVER_ID);
-            leave_network_if_alone(abandoned);
-            return;
+            stop_network_game_and_quit_to_main_menu();
+        } else {
+            quit_game = 1;
         }
-    } else if (network_is_active()) {
-        stop_network_game_and_quit_to_main_menu();
-    } else {
-        quit_game = 1;
+        get_my_player()->allocflags &= ~PlaF_Allocated;
+        return;
     }
-    player->allocflags &= ~PlaF_Allocated;
+    if (!network_is_active()) {
+        // recorded game; the user's keeper simply vanishes...
+        struct PlayerInfo *player = get_player(get_net_user_player_number(user));
+        if (player_exists(player)) {
+            player->allocflags &= ~PlaF_Allocated;
+        }
+        return;
+    }
+    
+    // note: packet processed in sync with simulation, it's okay to do this.
+    OnDroppedUser(user, NETDROP_MANUAL);
+    struct PlayerInfo *abandoned = remove_user_from_game(user);
+    leave_network_if_alone(abandoned);
 }
 
 static TbBool packet_is_departure(const struct Packet *pckt)
@@ -710,7 +719,7 @@ void process_disconnected_network_players(void)
         if (user == netstate.my_id) {
             continue;
         }
-        struct PlayerInfo *abandoned = remove_user_from_game(user, false);
+        struct PlayerInfo *abandoned = remove_user_from_game(user);
         if ((abandoned != NULL) && disconnect_victory_enabled[myplyr->id_number] && players_are_enemies(myplyr->id_number, abandoned->id_number)) {
             enemy_departed = true;
         }

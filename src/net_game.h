@@ -51,7 +51,7 @@ long network_session_join(void);
 TbBool network_user_active(NetUserId);
 const char *network_user_name(NetUserId);
 TbBool network_human_contenders_remain(void);
-void process_player_leave_game_packet(struct PlayerInfo *player);
+void process_user_leave_game_packet(NetUserId user);
 void process_disconnected_network_players(void);
 TbBool user_present(NetUserId user);
 void host_spoof_dropped_user_packets(void);

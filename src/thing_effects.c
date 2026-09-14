@@ -81,14 +81,16 @@ struct EffectElementConfigStats *get_effect_element_model_stats(ThingModel tngmo
 static TbBool any_player_close_enough_to_see(const struct Coord3d *pos)
 {
     struct PlayerInfo *player;
-    int i;
     short limit = 24 * COORD_PER_STL;
-    for (i=0; i < PLAYERS_COUNT; i++)
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++)
     {
-        player = get_player(i);
+        PlayerNumber plyr_idx = get_net_user_player_number(user);
+        if (plyr_idx < 0)
+            continue;
+        player = get_player(plyr_idx);
         if ( (player_exists(player)) && ((player->allocflags & PlaF_CompCtrl) == 0))
         {
-            struct Camera *camera = get_player_active_camera(player);
+            struct Camera *camera = get_user_active_camera(user);
             if (camera == NULL)
                 continue;
             if (camera->view_mode != PVM_FrontView)
@@ -791,7 +793,6 @@ void effect_generate_effect_elements(const struct Thing *thing)
     case 4:
     {
         HitPoints i = effcst->start_health / 2;
-        struct PlayerInfo* player;
         if (thing->health == effcst->start_health)
         {
             memset(temp_pal, 63, PALETTE_SIZE);
@@ -810,8 +811,7 @@ void effect_generate_effect_elements(const struct Thing *thing)
             LbPaletteFade(engine_palette, 8, Lb_PALETTE_FADE_OPEN);
         } else
         {
-            player = get_my_player();
-            PaletteSetUserPalette(player->user_id, engine_palette);
+            PaletteSetUserPalette(get_local_user(), engine_palette);
             LbPaletteStopOpenFade();
         }
         break;

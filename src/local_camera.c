@@ -62,7 +62,8 @@ void send_camera_catchup_packets(void)
         return;
     }
     struct PlayerInfo* player = get_my_player();
-    if (get_local_view_type(player) != player->view_type) {
+    struct UserState* ustate = get_local_user_state();
+    if (get_local_view_type(player) != ustate->view_type) {
         return;
     }
 
@@ -83,7 +84,7 @@ void send_camera_catchup_packets(void)
     }
 
     struct Camera* local_cam = &destination_local_cameras[cam_idx];
-    struct Camera* packet_cam = &player->cameras[cam_idx];
+    struct Camera* packet_cam = &ustate->cameras[cam_idx];
     struct Packet* pckt = get_local_packet();
 
     long diff_map_x = local_cam->mappos.x.val - packet_cam->mappos.x.val;
@@ -137,8 +138,9 @@ void init_local_cameras(struct PlayerInfo *player)
     if (!is_my_player(player)) {
         return;
     }
+    struct UserState* ustate = get_local_user_state();
     for (int i = 0; i < CamIV_EndList; i++) {
-        sync_camera_state(i, &player->cameras[i]);
+        sync_camera_state(i, &ustate->cameras[i]);
     }
     local_camera_move_cam = NULL;
     local_camera_ready = true;
@@ -192,6 +194,7 @@ void update_local_cameras(void)
         return;
     }
     struct PlayerInfo *player = get_my_player();
+    struct UserState *ustate = get_local_user_state();
     struct Thing *ctrltng = thing_get(player->controlled_thing_idx);
     const struct Packet *pckt = get_history_packet(get_local_user(), get_gameturn());
     previous_deviation_x = destination_deviation_x;
@@ -219,8 +222,8 @@ void update_local_cameras(void)
 
     struct Camera *cam = &destination_local_cameras[active_cam_idx];
     if (active_cam_idx == CamIV_Parchment) {
-        cam->mappos.x.val = player->cameras[CamIV_Parchment].mappos.x.val;
-        cam->mappos.y.val = player->cameras[CamIV_Parchment].mappos.y.val;
+        cam->mappos.x.val = ustate->cameras[CamIV_Parchment].mappos.x.val;
+        cam->mappos.y.val = ustate->cameras[CamIV_Parchment].mappos.y.val;
     }
     if (local_camera_move_cam != NULL) {
         if (view_move_camera_to_position(local_camera_move_cam, local_camera_move_target[0], local_camera_move_target[1], local_camera_move_delta[0], local_camera_move_delta[1])) {
@@ -228,7 +231,7 @@ void update_local_cameras(void)
         }
     }
     if (local_camera_move_cam != cam) {
-        process_camera_controls(cam, pckt, player);
+        process_camera_controls(cam, pckt, get_local_user(), player);
         view_process_camera_inertia(cam);
     }
 
@@ -298,21 +301,23 @@ void interpolate_local_cameras(void)
     interpolate_camera_deviations();
 }
 
-void sync_local_camera(struct PlayerInfo *player)
+void sync_local_camera(NetUserId user)
 {
-    if (!is_my_player(player) || !local_camera_ready) {
+    if ((user != get_local_user()) || !local_camera_ready) {
         return;
     }
-    struct Camera *camera = get_player_active_camera(player);
-    if (camera == &player->cameras[CamIV_Parchment] || player->view_mode == PVM_ParchmentView) {
+    struct UserState *ustate = get_user_state(user);
+    struct PlayerInfo *player = get_my_player();
+    struct Camera *camera = get_user_active_camera(user);
+    if (camera == &ustate->cameras[CamIV_Parchment] || ustate->view_mode == PVM_ParchmentView) {
         return;
     }
-    if (camera == &player->cameras[CamIV_FirstPerson]) {
+    if (camera == &ustate->cameras[CamIV_FirstPerson]) {
         sync_first_person_camera(camera, player);
         return;
     }
     for (int cam_idx = 0; cam_idx < CamIV_EndList; cam_idx++) {
-        sync_camera_state(cam_idx, &player->cameras[cam_idx]);
+        sync_camera_state(cam_idx, &ustate->cameras[cam_idx]);
     }
 }
 
@@ -321,7 +326,7 @@ void set_local_camera_destination(struct PlayerInfo *player)
     if (!is_my_player(player) || !local_camera_ready || get_local_view_type(player) == PVT_MapScreen) {
         return;
     }
-    memcpy(destination_local_cameras, player->cameras, sizeof(destination_local_cameras));
+    memcpy(destination_local_cameras, get_local_user_state()->cameras, sizeof(destination_local_cameras));
     struct Thing *ctrltng = thing_get(player->controlled_thing_idx);
     if (thing_exists(ctrltng)) {
         destination_local_cameras[CamIV_FirstPerson].rotation_angle_x = ctrltng->move_angle_xy;
@@ -345,32 +350,37 @@ void update_local_view_prediction(const struct Packet *pckt)
 
 unsigned char get_local_view_type(const struct PlayerInfo *player)
 {
+    const struct UserState *ustate = is_my_player(player) ? get_local_user_state() : get_player_user_state(player);
     if (!is_my_player(player) || local_state.view_type == PVT_None) {
-        return player->view_type;
+        return ustate->view_type;
     }
-    if (local_state.view_type == PVT_MapScreen || player->view_type == PVT_MapScreen) {
+    if (local_state.view_type == PVT_MapScreen || ustate->view_type == PVT_MapScreen) {
         return local_state.view_type;
     }
-    return player->view_type;
+    return ustate->view_type;
 }
 
 struct Camera* get_local_active_camera(struct PlayerInfo *player)
 {
-    struct Camera *camera = get_player_active_camera(player);
-    if (camera == NULL || !is_my_player(player) || !local_camera_ready) {
+    if (!is_my_player(player)) {
+        return get_player_active_camera(player);
+    }
+    struct Camera *camera = get_user_active_camera(get_local_user());
+    if (camera == NULL || !local_camera_ready) {
         return camera;
     }
+    const struct UserState *ustate = get_local_user_state();
     unsigned char view_type = get_local_view_type(player);
     if (view_type == PVT_MapScreen) {
         return &local_cameras[CamIV_Parchment];
     }
-    if (view_type == PVT_DungeonTop && player->view_type == PVT_MapScreen) {
-        if (player->view_mode_restore == PVM_FrontView) {
+    if (view_type == PVT_DungeonTop && ustate->view_type == PVT_MapScreen) {
+        if (ustate->view_mode_restore == PVM_FrontView) {
             return &local_cameras[CamIV_FrontView];
         }
         return &local_cameras[CamIV_Isometric];
     }
-    return &local_cameras[camera - player->cameras];
+    return &local_cameras[camera - ustate->cameras];
 }
 /******************************************************************************/
 #ifdef __cplusplus

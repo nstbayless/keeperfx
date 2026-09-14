@@ -22,6 +22,7 @@
 
 #include "bflib_basics.h"
 #include "globals.h"
+#include "net_main.h"
 #include "bflib_video.h"
 
 #ifdef __cplusplus
@@ -42,7 +43,7 @@ void setup_engine_window(long x1, long y1, long x2, long y2);
 void store_engine_window(TbGraphicsWindow *ewnd,int divider);
 void load_engine_window(TbGraphicsWindow *ewnd);
 
-void set_engine_view(struct PlayerInfo *player, long val);
+void set_user_engine_view(NetUserId user, long val);
 
 void draw_overlay_compass(long a1, long a2);
 

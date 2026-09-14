@@ -310,6 +310,7 @@ static int thing_tostring(lua_State *L)
 
 // Function to set field values
 static int thing_set_field(lua_State *L) {
+    struct UserState* ustate = get_local_user_state();
     struct Thing* thing = luaL_checkThing(L, 1);
     const char* key = luaL_checkstring(L, 2);
 
@@ -321,7 +322,7 @@ static int thing_set_field(lua_State *L) {
         struct PlayerInfo* player = get_my_player();
         if (!player_invalid(player)
             && player->controlled_thing_idx == thing->index
-            && player->view_mode == PVM_CreatureView)
+            && ustate->view_mode == PVM_CreatureView)
         {
             set_local_camera_destination(player);
         }        

@@ -2270,24 +2270,24 @@ static void light_render_area(MapSubtlCoord startx, MapSubtlCoord starty, MapSub
 
 void update_light_render_area(void)
 {
+    struct UserState* ustate = get_local_user_state();
     int subtile_x;
     int subtile_y;
     int startx;
     int starty;
     SYNCDBG(6,"Starting");
-    struct PlayerInfo* player = get_my_player();
     if (
-        player->view_mode == PVM_CreatureView ||
-        player->view_mode == PVM_IsoWibbleView ||
-        player->view_mode == PVM_FrontView ||
-        player->view_mode == PVM_IsoStraightView
+        ustate->view_mode == PVM_CreatureView ||
+        ustate->view_mode == PVM_IsoWibbleView ||
+        ustate->view_mode == PVM_FrontView ||
+        ustate->view_mode == PVM_IsoStraightView
     ) {
         game.something_light_y = LIGHT_MAX_RANGE;
         game.something_light_x = LIGHT_MAX_RANGE;
     }
     int delta_x = abs(game.something_light_x);
     int delta_y = abs(game.something_light_y);
-    struct Camera *camera = get_player_active_camera(player);
+    struct Camera *camera = get_user_active_camera(get_local_user());
     // Prepare the area constraints
     if (camera != NULL)
     {

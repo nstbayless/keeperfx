@@ -74,7 +74,7 @@ struct Packet *get_local_packet(void)
 void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype,
         unsigned long par1, unsigned long par2, unsigned short par3, unsigned short par4)
 {
-    struct Packet* pckt = get_packet(player->user_id);
+    struct Packet* pckt = get_packet(get_player_primary_user(player));
     pckt->actn_par1 = par1;
     pckt->actn_par2 = par2;
     pckt->actn_par3 = par3;
@@ -84,7 +84,7 @@ void set_players_packet_action(struct PlayerInfo *player, unsigned char pcktype,
 
 unsigned char get_players_packet_action(struct PlayerInfo *player)
 {
-    struct Packet* pckt = get_packet(player->user_id);
+    struct Packet* pckt = get_packet(get_player_primary_user(player));
     return pckt->action;
 }
 
@@ -95,7 +95,7 @@ void set_packet_control(struct Packet *pckt, unsigned long flag)
 
 void set_players_packet_control(struct PlayerInfo *player, unsigned long flag)
 {
-    struct Packet* pckt = get_packet(player->user_id);
+    struct Packet* pckt = get_packet(get_player_primary_user(player));
     pckt->control_flags |= flag;
 }
 
@@ -106,7 +106,7 @@ void unset_packet_control(struct Packet *pckt, unsigned long flag)
 
 void unset_players_packet_control(struct PlayerInfo *player, unsigned long flag)
 {
-    struct Packet* pckt = get_packet(player->user_id);
+    struct Packet* pckt = get_packet(get_player_primary_user(player));
     pckt->control_flags &= ~flag;
 }
 
@@ -395,7 +395,7 @@ void set_packet_pause_toggle()
     struct PlayerInfo* player = get_my_player();
     if (player_invalid(player))
         return;
-    if (player->user_id >= PACKETS_COUNT)
+    if (get_local_user() >= PACKETS_COUNT)
         return;
     if (game.game_kind != GKind_LocalGame) {
         unsigned long current_time = LbTimerClock();

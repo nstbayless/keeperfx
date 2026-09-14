@@ -847,12 +847,13 @@ long player_state_to_packet(PlayerState work_state, PowerKind pwkind, TbBool alr
 
 TbBool set_players_packet_change_spell(struct PlayerInfo *player,PowerKind pwkind)
 {
+    struct UserState* ustate = get_player_user_state(player);
     if (power_is_instinctive(game.chosen_spell_type) && (game.chosen_spell_type != 0))
         return false;
     const struct PowerConfigStats *powerst;
     powerst = get_power_model_stats(pwkind);
     TbBool already_in;
-    already_in = (powerst->work_state != PSt_None) && (player->work_state == powerst->work_state);
+    already_in = (powerst->work_state != PSt_None) && (ustate->work_state == powerst->work_state);
     int pcktype;
     pcktype = player_state_to_packet(powerst->work_state, pwkind, already_in);
     if (pcktype != PckA_None)
@@ -2355,11 +2356,11 @@ TbBool toggle_first_person_menu(TbBool visible)
 
 void set_gui_visible(TbBool visible)
 {
+  struct UserState* ustate = get_local_user_state();
   SYNCDBG(6,"Starting");
   set_flag_value(game.operation_flags, GOF_ShowGui, visible);
-  struct PlayerInfo *player=get_my_player();
   unsigned char is_visbl = ((game.operation_flags & GOF_ShowGui) != 0);
-  switch (player->view_type)
+  switch (ustate->view_type)
   {
   case PVT_CreatureContrl:
   case PVT_CreaturePasngr:

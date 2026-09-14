@@ -151,13 +151,13 @@ struct Thing *create_and_control_creature_as_controller(struct PlayerInfo *playe
     }
     const struct Camera* cam = get_player_active_camera(player);
     set_selected_creature(player, thing);
-    player->view_mode_restore = cam->view_mode;
+    get_player_user_state(player)->view_mode_restore = cam->view_mode;
     thing->alloc_flags |= TAlF_IsControlled;
     thing->rendering_flags |= TRF_Invisible;
     struct CreatureControl* cctrl = creature_control_get_from_thing(thing);
     cctrl->creature_state_flags |= TF2_Spectator;
     cctrl->max_speed = calculate_correct_creature_maxspeed(thing);
-    set_player_mode(player, PVT_CreatureContrl);
+    set_user_view_type(get_player_primary_user(player), PVT_CreatureContrl);
     set_start_state(thing);
     // Preparing light object
     struct InitLight ilght;

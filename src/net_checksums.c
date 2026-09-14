@@ -111,17 +111,22 @@ TbBigChecksum get_thing_checksum(const struct Thing* thing) {
 }
 
 static TbBigChecksum compute_player_checksum(struct PlayerInfo *player) {
-    struct Camera* camera = get_player_active_camera(player);
-    if ((player->allocflags & PlaF_CompCtrl) != 0 || camera == NULL) {
+    if ((player->allocflags & PlaF_CompCtrl) != 0) {
         return 0;
     }
     TbBigChecksum checksum = 0;
     CHECKSUM_ADD(checksum, player->instance_remain_turns);
     CHECKSUM_ADD(checksum, player->instance_num);
     if (player->victory_state == VicS_Undecided) {
-        CHECKSUM_ADD(checksum, camera->mappos.x.val);
-        CHECKSUM_ADD(checksum, camera->mappos.y.val);
-        CHECKSUM_ADD(checksum, camera->mappos.z.val);
+        for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+            if (get_net_user_player_number(user) != player->id_number) {
+                continue;
+            }
+            struct Camera* camera = get_user_active_camera(user);
+            CHECKSUM_ADD(checksum, camera->mappos.x.val);
+            CHECKSUM_ADD(checksum, camera->mappos.y.val);
+            CHECKSUM_ADD(checksum, camera->mappos.z.val);
+        }
     }
     return checksum;
 }

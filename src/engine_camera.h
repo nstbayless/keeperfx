@@ -22,6 +22,7 @@
 
 #include "bflib_basics.h"
 #include "globals.h"
+#include "net_main.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,7 +125,7 @@ void view_set_camera_move_to_position(struct Camera *cam, MapCoord x, MapCoord y
 TbBool view_move_camera_to_position(struct Camera *cam, MapCoord x, MapCoord y, MapCoordDelta move_x, MapCoordDelta move_y);
 
 void update_all_players_cameras(void);
-void init_player_cameras(struct PlayerInfo *player);
+void init_user_cameras(NetUserId user);
 void update_first_person_position(struct Camera *cam, struct Thing *thing, int eye_height);
 
 /******************************************************************************/

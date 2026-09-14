@@ -20,6 +20,7 @@
 #define DK_LOCAL_CAMERA_H
 
 #include "globals.h"
+#include "net_main.h"
 #include "bflib_basics.h"
 #include "engine_camera.h"
 
@@ -36,7 +37,7 @@ struct PlayerInfo;
 void init_local_cameras(struct PlayerInfo *player);
 void update_local_cameras(void);
 void interpolate_local_cameras(void);
-void sync_local_camera(struct PlayerInfo *player);
+void sync_local_camera(NetUserId user);
 void set_local_camera_destination(struct PlayerInfo *player);
 void move_local_camera_to_position(MapCoord x, MapCoord y);
 void update_local_view_prediction(const struct Packet *pckt);

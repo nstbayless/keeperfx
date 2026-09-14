@@ -702,6 +702,7 @@ long instf_dig(struct Thing *creatng, int32_t *param)
 
 long instf_destroy(struct Thing *creatng, int32_t *param)
 {
+    struct UserState* ustate = get_local_user_state();
     TRACE_THING(creatng);
     MapSlabCoord slb_x = subtile_slab(creatng->mappos.x.stl.num);
     MapSlabCoord slb_y = subtile_slab(creatng->mappos.y.stl.num);
@@ -709,8 +710,6 @@ long instf_destroy(struct Thing *creatng, int32_t *param)
     struct SlabMap* slb = get_slabmap_block(slb_x, slb_y);
     struct Room* room = room_get(slb->room_index);
     long prev_owner = slabmap_owner(slb);
-    struct PlayerInfo* player;
-    player = get_my_player();
     int volume = 32;
 
     if ( !room_is_invalid(room) && (prev_owner != creatng->owner) )
@@ -718,7 +717,7 @@ long instf_destroy(struct Thing *creatng, int32_t *param)
         if (room->health > 1)
         {
             room->health--;
-            if ((player->view_type == PVT_CreatureContrl) || (player->view_type == PVT_CreaturePasngr))
+            if ((ustate->view_type == PVT_CreatureContrl) || (ustate->view_type == PVT_CreaturePasngr))
             {
                 volume = FULL_LOUDNESS;
             }
@@ -744,7 +743,7 @@ long instf_destroy(struct Thing *creatng, int32_t *param)
     if (slb->health > 1)
     {
         slb->health--;
-        if ((player->view_type == PVT_CreatureContrl) || (player->view_type == PVT_CreaturePasngr))
+        if ((ustate->view_type == PVT_CreatureContrl) || (ustate->view_type == PVT_CreaturePasngr))
         {
             volume = FULL_LOUDNESS;
         }
@@ -755,7 +754,7 @@ long instf_destroy(struct Thing *creatng, int32_t *param)
         struct Dungeon* prev_dungeon = get_dungeon(prev_owner);
         prev_dungeon->lvstats.territory_lost++;
     }
-    if ((player->view_type == PVT_CreatureContrl) || (player->view_type == PVT_CreaturePasngr))
+    if ((ustate->view_type == PVT_CreatureContrl) || (ustate->view_type == PVT_CreaturePasngr))
     {
         volume = FULL_LOUDNESS;
     }
@@ -1051,6 +1050,7 @@ long instf_pretty_path(struct Thing *creatng, int32_t *param)
 
 long instf_reinforce(struct Thing *creatng, int32_t *param)
 {
+    struct UserState* ustate = get_local_user_state();
     SYNCDBG(16,"Starting");
     TRACE_THING(creatng);
     struct CreatureControl* cctrl = creature_control_get_from_thing(creatng);
@@ -1066,10 +1066,8 @@ long instf_reinforce(struct Thing *creatng, int32_t *param)
         cctrl->digger.consecutive_reinforcements++;
         if (!S3DEmitterIsPlayingSample(creatng->snd_emitter_id, 63))
         {
-            struct PlayerInfo* player;
-            player = get_my_player();
             int volume = 32;
-            if ((player->view_type == PVT_CreatureContrl) || (player->view_type == PVT_CreaturePasngr))
+            if ((ustate->view_type == PVT_CreatureContrl) || (ustate->view_type == PVT_CreaturePasngr))
             {
                 volume = FULL_LOUDNESS;
             }

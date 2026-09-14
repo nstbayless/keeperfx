@@ -534,7 +534,7 @@ void update(void)
         }
         if (flag_is_set(ustate->additional_flags,UsrAF_LightningPaletteIsActive))
         {
-            PaletteSetUserPalette(player->user_id, engine_palette);
+            PaletteSetUserPalette(get_local_user(), engine_palette);
             clear_flag(ustate->additional_flags, UsrAF_LightningPaletteIsActive);
         }
         clear_active_dungeons_stats();
@@ -559,12 +559,12 @@ void update(void)
         process_players();
         process_action_points();
         player = get_my_player();
-        if (player->view_mode == PVM_CreatureView)
+        if (ustate->view_mode == PVM_CreatureView)
         {
             struct Thing *thing = thing_get(player->controlled_thing_idx);
             update_first_person_object_ambience(thing);
         }
-        update_footsteps_nearest_camera(get_player_active_camera(player));
+        update_footsteps_nearest_camera(get_user_active_camera(get_local_user()));
         PaletteFadePlayer(player);
         process_armageddon();
         update_global_lighting();

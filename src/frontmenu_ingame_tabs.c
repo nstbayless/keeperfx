@@ -635,7 +635,7 @@ void gui_area_big_room_button(struct GuiButton *gbtn)
     {
         boxsize = 1;
     }
-    if ((player->work_state == PSt_BuildRoom) && (boxsize > 1))
+    if ((ustate->work_state == PSt_BuildRoom) && (boxsize > 1))
     {
         snprintf(gui_textbuf, sizeof(gui_textbuf), "%ld", (long)roomst->cost * boxsize);
     }
@@ -643,9 +643,9 @@ void gui_area_big_room_button(struct GuiButton *gbtn)
     {
         snprintf(gui_textbuf, sizeof(gui_textbuf), "%ld", (long)roomst->cost);
     }
-    if (player->render_roomspace.total_roomspace_cost <= dungeon->total_money_owned)
+    if (ustate->render_roomspace.total_roomspace_cost <= dungeon->total_money_owned)
     {
-        if ((player->work_state == PSt_BuildRoom) && (ustate->chosen_room_kind == game.chosen_room_kind)
+        if ((ustate->work_state == PSt_BuildRoom) && (ustate->chosen_room_kind == game.chosen_room_kind)
           && ((get_gameturn() % (2 * gui_blink_rate)) < gui_blink_rate))
         {
             draw_gui_panel_sprite_rmleft(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx, 44);
@@ -803,6 +803,7 @@ void gui_choose_special_spell(struct GuiButton *gbtn)
 
 void gui_area_big_spell_button(struct GuiButton *gbtn)
 {
+    struct UserState* ustate = get_local_user_state();
     unsigned short flg_mem = RendererGetDrawFlags();
 
     int units_per_px = (gbtn->width * 16 + 126 / 2) / 126;
@@ -841,7 +842,7 @@ void gui_area_big_spell_button(struct GuiButton *gbtn)
     snprintf(text, sizeof(text), "%ld", (long)price);
     if (dungeon->total_money_owned >= price)
     {
-        if ((player->work_state == powerst->work_state) && ((get_gameturn() % (2 * gui_blink_rate)) >= gui_blink_rate)) {
+        if ((ustate->work_state == powerst->work_state) && ((get_gameturn() % (2 * gui_blink_rate)) >= gui_blink_rate)) {
             draw_gui_panel_sprite_rmleft(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx, 44);
         } else {
             draw_gui_panel_sprite_left(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx);
@@ -1207,8 +1208,8 @@ void gui_area_big_trap_button(struct GuiButton *gbtn)
         if (amount <= 0) {
             draw_gui_panel_sprite_left(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx + 1);
         } else
-        if ((((manufctr->tngclass == TCls_Trap) && (ustate->chosen_trap_kind == manufctr->tngmodel) && (player->work_state == PSt_PlaceTrap))
-        || ((manufctr->tngclass == TCls_Door) && (ustate->chosen_door_kind == manufctr->tngmodel) && (player->work_state == PSt_PlaceDoor)))
+        if ((((manufctr->tngclass == TCls_Trap) && (ustate->chosen_trap_kind == manufctr->tngmodel) && (ustate->work_state == PSt_PlaceTrap))
+        || ((manufctr->tngclass == TCls_Door) && (ustate->chosen_door_kind == manufctr->tngmodel) && (ustate->work_state == PSt_PlaceDoor)))
         && ((get_gameturn() % (2 * gui_blink_rate)) < gui_blink_rate) )
         {
             draw_gui_panel_sprite_rmleft(gbtn->scr_pos_x - 4*units_per_px/16, gbtn->scr_pos_y - 32*units_per_px/16, ps_units_per_px, gbtn->sprite_idx, 44);
@@ -2678,6 +2679,7 @@ void gui_set_button_flashing(long btn_idx, long gameturns)
 
 void update_room_tab_to_config(void)
 {
+    struct UserState* ustate = get_local_user_state();
     SYNCDBG(8, "Starting");
     int i;
     struct GuiButtonInit* ibtn;
@@ -2727,8 +2729,7 @@ void update_room_tab_to_config(void)
         ibtn->draw_call = gui_area_room_button;
     }
     // Update active menu
-    struct PlayerInfo *player = get_my_player();
-    if (player->view_type == PVT_DungeonTop)
+    if (ustate->view_type == PVT_DungeonTop)
     {
         if (menu_is_active(GMnu_ROOM))
         {
@@ -2745,6 +2746,7 @@ void update_room_tab_to_config(void)
 
 void update_trap_tab_to_config(void)
 {
+    struct UserState* ustate = get_local_user_state();
     SYNCDBG(8, "Starting");
     int i;
     struct GuiButtonInit* ibtn;
@@ -2812,8 +2814,7 @@ void update_trap_tab_to_config(void)
         }
     }
     // Update active menu
-    struct PlayerInfo *player = get_my_player();
-    if (player->view_type == PVT_DungeonTop)
+    if (ustate->view_type == PVT_DungeonTop)
     {
         if ( menu_is_active(GMnu_TRAP) )
         {

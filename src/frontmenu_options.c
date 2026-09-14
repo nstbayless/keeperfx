@@ -301,8 +301,8 @@ void gui_set_mentor_volume(struct GuiButton *gbtn)
 
 void gui_video_cluedo_maintain(struct GuiButton *gbtn)
 {
-    struct PlayerInfo* player = get_my_player();
-    if (player->view_mode == PVM_FrontView)
+    struct UserState* ustate = get_local_user_state();
+    if (ustate->view_mode == PVM_FrontView)
     {
         gbtn->btype_value |= LbBFeF_NoTooltip;
         gbtn->flags &= ~LbBtnF_Enabled;

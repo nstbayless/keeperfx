@@ -596,8 +596,6 @@ static void abandon_network_player(struct PlayerInfo *player, TbBool announce)
     resolve_disconnect_victories(player);
 }
 
-// Take a user out of the game: their player is handed to the AI, or written
-// off if their fate was already decided. Nothing here touches the transport.
 static struct PlayerInfo *remove_user_from_game(NetUserId user)
 {
     struct UserState *ustate = get_user_state(user);

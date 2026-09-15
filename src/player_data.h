@@ -191,7 +191,6 @@ struct PlayerInfo {
     uint32_t isometric_view_zoom_level;
     uint32_t frontview_zoom_level;
     unsigned char hand_idx;
-    /** Deferred build/sell in progress. Per player: the dungeon is what gets built. */
     struct RoomSpace roomspace;
     unsigned char player_type; //enum PlayerTypes
     ThingModel special_digger;

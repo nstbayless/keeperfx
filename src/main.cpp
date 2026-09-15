@@ -1003,14 +1003,13 @@ void clear_players_for_save(void)
     unsigned short saved_player_id;
     unsigned short saved_is_active;
     unsigned short saved_allocation_flags;
-    int i;
-    for (i=0; i < PLAYERS_COUNT; i++)
+    
+    for (int i=0; i < PLAYERS_COUNT; i++)
     {
       player = get_player(i);
       saved_player_id = player->id_number;
       saved_is_active = player->is_active;
       saved_allocation_flags = player->allocflags;
-      // Cameras live in the user state, which this reset leaves alone.
       memset(player, 0, sizeof(struct PlayerInfo));
       player->id_number = saved_player_id;
       player->is_active = saved_is_active;

@@ -117,17 +117,26 @@ static TbBigChecksum compute_player_checksum(struct PlayerInfo *player) {
     TbBigChecksum checksum = 0;
     CHECKSUM_ADD(checksum, player->instance_remain_turns);
     CHECKSUM_ADD(checksum, player->instance_num);
-    if (player->victory_state == VicS_Undecided) {
-        for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
-            if (get_net_user_player_number(user) != player->id_number) {
-                continue;
-            }
-            struct Camera* camera = get_user_active_camera(user);
-            CHECKSUM_ADD(checksum, camera->mappos.x.val);
-            CHECKSUM_ADD(checksum, camera->mappos.y.val);
-            CHECKSUM_ADD(checksum, camera->mappos.z.val);
-        }
+    return checksum;
+}
+
+static TbBigChecksum compute_user_checksum(NetUserId user) {
+    struct UserState *ustate = get_user_state(user);
+    if (user_state_invalid(ustate) || (ustate->player_id == PLAYER_NONE)) {
+        return 0;
     }
+    struct PlayerInfo *player = get_player(ustate->player_id);
+    if (!player_exists(player) || ((player->allocflags & PlaF_CompCtrl) != 0) || (player->victory_state != VicS_Undecided)) {
+        return 0;
+    }
+    struct Camera *camera = get_user_active_camera(user);
+    if (camera == NULL) {
+        return 0;
+    }
+    TbBigChecksum checksum = 0;
+    CHECKSUM_ADD(checksum, camera->mappos.x.val);
+    CHECKSUM_ADD(checksum, camera->mappos.y.val);
+    CHECKSUM_ADD(checksum, camera->mappos.z.val);
     return checksum;
 }
 
@@ -184,6 +193,10 @@ static void compute_checksums(struct DesyncChecksums* checksums) {
         if (player_exists(player)) {
             checksums->players += compute_player_checksum(player);
         }
+    }
+    checksums->users = 0;
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        checksums->users += compute_user_checksum(user);
     }
     checksums->action_seed = game.action_random_seed;
     checksums->ai_seed = game.ai_random_seed;
@@ -273,6 +286,7 @@ void update_turn_checksums(void) {
     compute_checksums(&snapshot->checksums);
     snapshot_info->thing_count = 0;
     snapshot_info->player_count = 0;
+    snapshot_info->user_count = 0;
     snapshot_info->room_count = 0;
     if (network_is_active()) {
         for (int i = 1; i < SYNCED_THINGS_COUNT; i++) {
@@ -327,20 +341,30 @@ void update_turn_checksums(void) {
         }
         for (int i = 0; i < PLAYERS_COUNT; i++) {
             struct PlayerInfo* player = get_player(i);
-            struct Camera* camera = get_player_active_camera(player);
-            if (!player_exists(player) || ((player->allocflags & PlaF_CompCtrl) != 0) || camera == NULL) {
+            if (!player_exists(player) || ((player->allocflags & PlaF_CompCtrl) != 0)) {
                 continue;
             }
             struct LogPlayerDesyncInfo* player_snapshot = &snapshot_info->players[snapshot_info->player_count++];
             player_snapshot->id = i;
             player_snapshot->instance_num = player->instance_num;
             player_snapshot->instance_remain_turns = player->instance_remain_turns;
-            if (player->victory_state == VicS_Undecided) {
-                player_snapshot->mappos = camera->mappos;
-            } else {
-                memset(&player_snapshot->mappos, 0, sizeof(player_snapshot->mappos));
-            }
             player_snapshot->checksum = compute_player_checksum(player);
+        }
+        for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+            struct UserState* ustate = get_user_state(user);
+            if (user_state_invalid(ustate) || (ustate->player_id == PLAYER_NONE)) {
+                continue;
+            }
+            struct LogUserDesyncInfo* user_snapshot = &snapshot_info->users[snapshot_info->user_count++];
+            user_snapshot->user = user;
+            user_snapshot->player_id = ustate->player_id;
+            struct Camera* camera = get_user_active_camera(user);
+            if (camera != NULL) {
+                user_snapshot->mappos = camera->mappos;
+            } else {
+                memset(&user_snapshot->mappos, 0, sizeof(user_snapshot->mappos));
+            }
+            user_snapshot->checksum = compute_user_checksum(user);
         }
         for (struct Room* room = start_rooms; room < end_rooms; room++) {
             if (!room_exists(room)) {
@@ -374,11 +398,12 @@ void update_turn_checksums(void) {
     packet->checksum += things_sum;
     packet->checksum += checksums->rooms;
     packet->checksum += checksums->players;
+    packet->checksum += checksums->users;
     packet->checksum += checksums->action_seed;
     packet->checksum += checksums->player_seed;
     packet->checksum += checksums->ai_seed;
 
-    MULTIPLAYER_LOG("update_turn_checksums: turn=%lu checksum=%08lx things=%08lx rooms=%08lx players=%08lx", (unsigned long)get_gameturn(), (unsigned long)packet->checksum, (unsigned long)things_sum, (unsigned long)checksums->rooms, (unsigned long)checksums->players);
+    MULTIPLAYER_LOG("update_turn_checksums: turn=%lu checksum=%08lx things=%08lx rooms=%08lx players=%08lx users=%08lx", (unsigned long)get_gameturn(), (unsigned long)packet->checksum, (unsigned long)things_sum, (unsigned long)checksums->rooms, (unsigned long)checksums->players, (unsigned long)checksums->users);
 }
 
 void pack_desync_history_for_resync(void) {
@@ -387,6 +412,7 @@ void pack_desync_history_for_resync(void) {
         compute_checksums(&game.host_checksums);
         game.log_snapshot.thing_count = 0;
         game.log_snapshot.player_count = 0;
+        game.log_snapshot.user_count = 0;
         game.log_snapshot.room_count = 0;
         return;
     }
@@ -500,11 +526,30 @@ void compare_desync_history_from_host(void) {
             if (host_player == NULL) {
                 ERRORLOG("    Player[%d] missing from host", client_player->id);
             } else if (client_player->checksum != host_player->checksum) {
-                ERRORLOG("    Player[%d] instance_num: Host=%u Client=%u, instance_remain_turns: Host=%lu Client=%lu, mappos: Host=(%ld,%ld,%ld) Client=(%ld,%ld,%ld)", client_player->id,
+                ERRORLOG("    Player[%d] instance_num: Host=%u Client=%u, instance_remain_turns: Host=%lu Client=%lu", client_player->id,
                     (unsigned)host_player->instance_num, (unsigned)client_player->instance_num,
-                    (unsigned long)host_player->instance_remain_turns, (unsigned long)client_player->instance_remain_turns,
-                    (long)host_player->mappos.x.val, (long)host_player->mappos.y.val, (long)host_player->mappos.z.val,
-                    (long)client_player->mappos.x.val, (long)client_player->mappos.y.val, (long)client_player->mappos.z.val);
+                    (unsigned long)host_player->instance_remain_turns, (unsigned long)client_player->instance_remain_turns);
+            }
+        }
+    }
+    ERRORLOG("  Users %s - Host: %08lx, Client: %08lx", (client->users == host->users) ? "match" : "MISMATCH", (unsigned long)host->users, (unsigned long)client->users);
+    if (client->users != host->users) {
+        for (int i = 0; i < client_snapshot->user_count; i++) {
+            struct LogUserDesyncInfo* client_user = &client_snapshot->users[i];
+            struct LogUserDesyncInfo* host_user = NULL;
+            for (int j = 0; j < host_snapshot->user_count; j++) {
+                if (host_snapshot->users[j].user == client_user->user) {
+                    host_user = &host_snapshot->users[j];
+                    break;
+                }
+            }
+            if (host_user == NULL) {
+                ERRORLOG("    User[%d] missing from host", (int)client_user->user);
+            } else if (client_user->checksum != host_user->checksum) {
+                ERRORLOG("    User[%d] player: Host=%d Client=%d, mappos: Host=(%ld,%ld,%ld) Client=(%ld,%ld,%ld)", (int)client_user->user,
+                    (int)host_user->player_id, (int)client_user->player_id,
+                    (long)host_user->mappos.x.val, (long)host_user->mappos.y.val, (long)host_user->mappos.z.val,
+                    (long)client_user->mappos.x.val, (long)client_user->mappos.y.val, (long)client_user->mappos.z.val);
             }
         }
     }

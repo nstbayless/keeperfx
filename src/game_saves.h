@@ -38,13 +38,17 @@ extern "C" {
 #define SAVE_TEXTNAME_LEN        30
 #define PLAYER_NAME_LENGTH       64
 
+#define MAKE_CHUNK_ID(char1, char2, char3, char4) \
+    ((uint32_t)(unsigned char)(char1)         | ((uint32_t)(unsigned char)(char2) << 8) \
+   | ((uint32_t)(unsigned char)(char3) << 16) | ((uint32_t)(unsigned char)(char4) << 24))
+
 enum SaveGameChunks {
-     SGC_InfoBlock      = 0x4F464E49, //"INFO"
-     SGC_GameOrig       = 0x53444C4F, //"OLDS"
-     SGC_PacketHeader   = 0x52444850, //"PHDR"
-     SGC_PacketData     = 0x544B4350, //"PCKT"
-     SGC_IntralevelData = 0x4C564C49, //"ILVL"
-     SGC_LuaData        = 0x2041554C  //"LUA "
+     SGC_InfoBlock      = MAKE_CHUNK_ID('I', 'N', 'F', 'O'),
+     SGC_GameOrig       = MAKE_CHUNK_ID('O', 'L', 'D', 'S'),
+     SGC_PacketHeader   = MAKE_CHUNK_ID('P', 'H', 'D', 'R'),
+     SGC_PacketData     = MAKE_CHUNK_ID('P', 'C', 'K', 'T'),
+     SGC_IntralevelData = MAKE_CHUNK_ID('I', 'L', 'V', 'L'),
+     SGC_LuaData        = MAKE_CHUNK_ID('L', 'U', 'A', ' ')
 };
 
 enum SaveGameChunkFlags {
@@ -91,10 +95,24 @@ struct CatalogueEntry {
     unsigned short game_ver_build;
 };
 
+// "\x80\x00DKFX\x81\x00
+#define FILE_CHUNK_MAGIC 0x008158464B440080ULL
+
+enum FileChunkFlags {
+    // File formats should be independent of host endianness and word width,
+    // but in case something got overlooked, these flags make sure data is recoverable.
+    FChdrF_BigEndian = 0x1,
+    FChdrF_Arch64 = 0x2,
+};
+
 struct FileChunkHeader {
-    unsigned long len;
-    unsigned long id;
-    unsigned long ver;
+    uint64_t magic;
+    uint32_t id; // e.g. 'PHDR', 'INFO', etc.
+    uint32_t ver; // (per-id)
+    uint32_t len; // length of following payload
+    uint32_t stride; // size of 1 record
+    uint32_t flags;
+    uint32_t reserved;
 };
 
 /******************************************************************************/

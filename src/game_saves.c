@@ -16,6 +16,7 @@
  *     (at your option) any later version.
  */
 /******************************************************************************/
+#include <inttypes.h>
 #include "pre_inc.h"
 #include "game_saves.h"
 
@@ -83,6 +84,59 @@ static long save_game_catalogue_capacity = 0;  // number of entries actually all
 
 int number_of_saved_games;
 
+#if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define BIG_ENDIAN 1
+#else
+#define BIG_ENDIAN 0
+#endif
+
+static inline uint16_t bswap16(uint16_t x)
+{
+    return (uint16_t)((x >> 8) | (x << 8));
+}
+
+static inline uint32_t bswap32(uint32_t x)
+{
+    return ((x & 0xFF000000U) >> 24) | ((x & 0x00FF0000U) >> 8)
+         | ((x & 0x0000FF00U) << 8)  | ((x & 0x000000FFU) << 24);
+}
+
+static inline uint16_t u16le(uint16_t x)
+{
+#if BIG_ENDIAN
+    return bswap16(x);
+#else
+    return x;
+#endif
+}
+
+static inline uint32_t u32le(uint32_t x)
+{
+#if BIG_ENDIAN
+    return bswap32(x);
+#else
+    return x;
+#endif
+}
+
+static inline uint64_t u64le(uint64_t x)
+{
+#if BIG_ENDIAN
+    return ((uint64_t)bswap32((uint32_t)x) << 32) | bswap32((uint32_t)(x >> 32));
+#else
+    return x;
+#endif
+}
+
+static inline uint32_t u32be(uint32_t x)
+{
+#if BIG_ENDIAN
+    return x;
+#else
+    return bswap32(x);
+#endif
+}
+
 /** Grow the catalogue so that index slot is valid; any newly added entries are zeroed
  *  (not in use). Returns false only on allocation failure. */
 static TbBool ensure_catalogue_slot(long slot)
@@ -139,32 +193,60 @@ TbBool is_primitive_save_version(long filesize)
     return false;
 }
 
+static void init_chunk_header(struct FileChunkHeader *hdr, uint32_t id, uint32_t ver,
+    uint32_t len, uint32_t stride)
+{
+    uint32_t flags = 0;
+    if (BIG_ENDIAN) {
+        flags |= FChdrF_BigEndian;
+    }
+    if (sizeof(void *) == 8) {
+        flags |= FChdrF_Arch64;
+    }
+    memset(hdr, 0, sizeof(*hdr));
+    hdr->magic = u64le(FILE_CHUNK_MAGIC);
+    hdr->id = u32le(id);
+    hdr->ver = u32le(ver);
+    hdr->len = u32le(len);
+    hdr->stride = u32le(stride);
+    hdr->flags = u32le(flags);
+}
+
+static TbBool read_chunk_header(struct FileChunkHeader *hdr)
+{
+    if (hdr->magic != u64le(FILE_CHUNK_MAGIC)) {
+        WARNLOG("Chunk header magic is %016" PRIx64 ", expected %016" PRIx64,
+            hdr->magic, (uint64_t)FILE_CHUNK_MAGIC);
+        return false;
+    }
+    hdr->id = u32le(hdr->id);
+    hdr->ver = u32le(hdr->ver);
+    hdr->len = u32le(hdr->len);
+    hdr->stride = u32le(hdr->stride);
+    hdr->flags = u32le(hdr->flags);
+    return true;
+}
+
 TbBool save_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
 {
     struct FileChunkHeader hdr;
-    long chunks_done = 0;
+    uint32_t chunks_done = 0;
     // Currently there is some game data outside of structs - make sure it is updated
     light_export_system_state(&game.lightst);
     { // Info chunk
-        hdr.id = SGC_InfoBlock;
-        hdr.ver = CATALOGUE_ENTRY_VER;
-        hdr.len = sizeof(struct CatalogueEntry);
+        init_chunk_header(&hdr, SGC_InfoBlock, CATALOGUE_ENTRY_VER, sizeof(struct CatalogueEntry), 0);
         if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
         if (LbFileWrite(fhandle, centry, sizeof(struct CatalogueEntry)) == sizeof(struct CatalogueEntry))
             chunks_done |= SGF_InfoBlock;
     }
     { // Game data chunk
-        hdr.id = SGC_GameOrig;
-        hdr.ver = 0;
-        hdr.len = sizeof(struct Game);
+        init_chunk_header(&hdr, SGC_GameOrig, 0, sizeof(struct Game), 0);
         if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
         if (LbFileWrite(fhandle, &game, sizeof(struct Game)) == sizeof(struct Game))
             chunks_done |= SGF_GameOrig;
     }
     { // IntralevelData data chunk
-        hdr.id = SGC_IntralevelData;
-        hdr.ver = 0;
-        hdr.len = sizeof(struct IntralevelData);
+        init_chunk_header(&hdr, SGC_IntralevelData, 0, sizeof(struct IntralevelData), 0);
         if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
         if (LbFileWrite(fhandle, &intralvl, sizeof(struct IntralevelData)) == sizeof(struct IntralevelData))
             chunks_done |= SGF_IntralevelData;
@@ -175,9 +257,7 @@ TbBool save_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
         size_t lua_data_len;
         const char* lua_data = lua_get_serialised_data(&lua_data_len);
 
-        hdr.id = SGC_LuaData;
-        hdr.ver = 0;
-        hdr.len = lua_data_len;
+        init_chunk_header(&hdr, SGC_LuaData, 0, lua_data_len, 0);
         if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
         if (LbFileWrite(fhandle, lua_data, lua_data_len) == lua_data_len)
             chunks_done |= SGF_LuaData;
@@ -192,19 +272,16 @@ TbBool save_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
 TbBool save_packet_chunks(TbFileHandle fhandle,struct CatalogueEntry *centry)
 {
     struct FileChunkHeader hdr;
-    long chunks_done = 0;
+    uint32_t chunks_done = 0;
     { // Packet file header
-        hdr.id = SGC_PacketHeader;
-        hdr.ver = PACKET_SAVE_HEAD_VER;
-        hdr.len = sizeof(struct PacketSaveHead);
+        init_chunk_header(&hdr, SGC_PacketHeader, PACKET_SAVE_HEAD_VER,
+            sizeof(struct PacketSaveHead), 0);
         if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
         if (LbFileWrite(fhandle, &game.packet_save_head, sizeof(struct PacketSaveHead)) == sizeof(struct PacketSaveHead))
             chunks_done |= SGF_PacketHeader;
     }
     { // Info chunk
-        hdr.id = SGC_InfoBlock;
-        hdr.ver = CATALOGUE_ENTRY_VER;
-        hdr.len = sizeof(struct CatalogueEntry);
+        init_chunk_header(&hdr, SGC_InfoBlock, CATALOGUE_ENTRY_VER, sizeof(struct CatalogueEntry), 0);
         if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
         if (LbFileWrite(fhandle, centry, sizeof(struct CatalogueEntry)) == sizeof(struct CatalogueEntry))
             chunks_done |= SGF_InfoBlock;
@@ -213,18 +290,14 @@ TbBool save_packet_chunks(TbFileHandle fhandle,struct CatalogueEntry *centry)
     if (get_gameturn() != 0)
     {
         { // Game data chunk
-            hdr.id = SGC_GameOrig;
-            hdr.ver = 0;
-            hdr.len = sizeof(struct Game);
+            init_chunk_header(&hdr, SGC_GameOrig, 0, sizeof(struct Game), 0);
             if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
             if (LbFileWrite(fhandle, &game, sizeof(struct Game)) == sizeof(struct Game))
                 chunks_done |= SGF_GameOrig;
         }
     }
     { // Packet file data start indicator
-        hdr.id = SGC_PacketData;
-        hdr.ver = PACKET_VER;
-        hdr.len = 0; // unbounded
+        init_chunk_header(&hdr, SGC_PacketData, PACKET_VER, 0, packet_turn_size());
         if (LbFileWrite(fhandle, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
             chunks_done |= SGF_PacketData;
     }
@@ -237,8 +310,8 @@ static TbBool chunk_version_ok(TbFileHandle fhandle, const struct FileChunkHeade
 {
     if (hdr->ver == expected)
         return true;
-    WARNLOG("Chunk %04x is version %u, expected %u; skipping it",
-        (unsigned)hdr->id, (unsigned)hdr->ver, (unsigned)expected);
+    WARNLOG("Chunk %08x is version %u, expected %u; skipping it",
+        (unsigned)u32be(hdr->id), (unsigned)hdr->ver, (unsigned)expected);
     if (LbFileSeek(fhandle, hdr->len, Lb_FILE_SEEK_CURRENT) < 0)
         LbFileSeek(fhandle, 0, Lb_FILE_SEEK_END);
     return false;
@@ -246,11 +319,13 @@ static TbBool chunk_version_ok(TbFileHandle fhandle, const struct FileChunkHeade
 
 int load_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
 {
-    long chunks_done = 0;
+    uint32_t chunks_done = 0;
     while (!LbFileEof(fhandle))
     {
         struct FileChunkHeader hdr;
         if (LbFileRead(fhandle, &hdr, sizeof(struct FileChunkHeader)) != sizeof(struct FileChunkHeader))
+            break;
+        if (!read_chunk_header(&hdr))
             break;
         switch (hdr.id)
         {
@@ -315,6 +390,12 @@ int load_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
                 WARNLOG("Incompatible PacketData chunk");
                 break;
             }
+            if (hdr.stride != (uint32_t)packet_turn_size())
+            {
+                ERRORLOG("PacketData chunk stores %u bytes per turn, expected %d",
+                    (unsigned)hdr.stride, packet_turn_size());
+                return GLoad_Failed;
+            }
             chunks_done |= SGF_PacketData;
             if ((chunks_done & SGF_PacketContinue) == SGF_PacketContinue)
                 return GLoad_PacketContinue;
@@ -355,7 +436,7 @@ int load_game_chunks(TbFileHandle fhandle, struct CatalogueEntry *centry)
             }
             break;
         default:
-            WARNLOG("Unrecognized chunk, ID = %08lx", hdr.id);
+            WARNLOG("Unrecognized chunk, ID = %08x", (unsigned int)u32be(hdr.id));
             if (LbFileSeek(fhandle, hdr.len, Lb_FILE_SEEK_CURRENT) < 0)
                 LbFileSeek(fhandle, 0, Lb_FILE_SEEK_END);
             break;
@@ -412,7 +493,8 @@ TbBool is_save_game_loadable(long slot_num)
     {
         // Let's try to read the file, just to be sure
         struct FileChunkHeader hdr;
-        if (LbFileRead(fh, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
+        if ((LbFileRead(fh, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
+         && read_chunk_header(&hdr))
         {
             LbFileClose(fh);
             return true;
@@ -648,7 +730,8 @@ TbBool load_game_save_catalogue(void)
         if (!fh)
             continue;
         struct FileChunkHeader hdr;
-        if (LbFileRead(fh, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
+        if ((LbFileRead(fh, &hdr, sizeof(struct FileChunkHeader)) == sizeof(struct FileChunkHeader))
+         && read_chunk_header(&hdr))
         {
             if (load_catalogue_entry(fh,&hdr,centry))
                 saves_found++;

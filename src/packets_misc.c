@@ -165,7 +165,7 @@ static int packet_saved_users(NetUserId *users)
     return n;
 }
 
-static int packet_turn_size(void)
+int packet_turn_size(void)
 {
     NetUserId users[MAX_NET_USERS];
     return packet_saved_users(users) * sizeof(struct Packet) + sizeof(TbBigChecksum);

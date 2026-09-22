@@ -367,6 +367,7 @@ void post_init_packets(void);
 void restore_users_from_packet_save(void);
 
 TbBool open_new_packet_file_for_save(void);
+int packet_turn_size(void);
 void load_packets_for_turn(GameTurn nturn);
 TbBool open_packet_file_for_load(char *fname, struct CatalogueEntry *centry);
 short save_packets(void);

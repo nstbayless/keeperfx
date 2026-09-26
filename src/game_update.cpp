@@ -270,7 +270,7 @@ static void process_dungeons(void)
 {
   SYNCDBG(7,"Starting");
   check_players_lost();
-  defeat_unallied_standins();
+  resolve_standins();
   process_dungeon_power_magic();
   process_dungeon_devastation_effects();
   process_entrance_generation();

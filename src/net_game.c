@@ -544,19 +544,23 @@ static TbBool standin_has_loadbearing_ally(const struct PlayerInfo *standin)
     return false;
 }
 
-// stand-ins with no human still propping them up are marked as defeated
-void defeat_unallied_standins(void)
+// stand-ins with no human still propping them up are marked as defeated;
+// stand-ins whose outcome is settled are deallocated
+void resolve_standins(void)
 {
     for (PlayerNumber plyr_idx = 0; plyr_idx < PLAYERS_COUNT; plyr_idx++) {
         struct PlayerInfo *player = get_player(plyr_idx);
-        if (!player_exists(player) || !player_is_ai_standin(player) || (player->victory_state != VicS_Undecided)
-            || standin_has_loadbearing_ally(player)) {
+        if (!player_exists(player) || !player_is_ai_standin(player)) {
             continue;
         }
-        JUSTLOG("p:%d defeated, no human allies remain", (int)plyr_idx);
-        event_kill_all_players_events(plyr_idx);
-        set_player_as_lost_level(player);
-        player->allocflags &= ~PlaF_Allocated;
+        if ((player->victory_state == VicS_Undecided) && !standin_has_loadbearing_ally(player)) {
+            JUSTLOG("p:%d defeated, no human allies remain", (int)plyr_idx);
+            event_kill_all_players_events(plyr_idx);
+            set_player_as_lost_level(player);
+        }
+        if ((player->victory_state == VicS_WonLevel) || player_defeat_settled(plyr_idx)) {
+            player->allocflags &= ~PlaF_Allocated;
+        }
     }
 }
 
@@ -576,7 +580,7 @@ static void abandon_network_player(struct PlayerInfo *player, TbBool announce)
             replace_network_player_with_ai(player);
         }
     }
-    defeat_unallied_standins();
+    resolve_standins();
     if (player->victory_state != VicS_Undecided) {
         player->allocflags &= ~PlaF_Allocated;
     }

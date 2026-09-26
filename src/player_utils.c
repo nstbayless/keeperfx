@@ -92,35 +92,43 @@ TbBool player_cannot_win(PlayerNumber plyr_idx)
     return false;
 }
 
+// lost, and not still in the middle of the heart exploding
+TbBool player_defeat_settled(PlayerNumber plyr_idx)
+{
+    struct PlayerInfo* player = get_player(plyr_idx);
+    if (player->victory_state != VicS_LostLevel)
+        return false;
+    struct Thing* heartng = get_player_soul_container(plyr_idx);
+    return !(thing_exists(heartng) && (heartng->active_state == ObSt_BeingDestroyed));
+}
+
 // player dropped and is computer-controlled
-static TbBool player_is_ai_standin(const struct PlayerInfo *player)
+TbBool player_is_ai_standin(const struct PlayerInfo *player)
 {
     return flag_is_set(player->allocflags, PlaF_CompCtrl) && flag_is_set(player->allocflags, PlaF_OriginallyHuman);
 }
 
-TbBool player_is_victory_candidate(const struct PlayerInfo *player)
+static TbBool player_belongs_in_victory_kernel(const struct PlayerInfo *player)
 {
+    // is an undefeated human 
     return player_exists(player)
         && player->is_active == 1
         && player->id_number != game.neutral_player_num
-        && !player_is_ai_standin(player)
-        && !player_cannot_win(player->id_number);
+        && (player->victory_state != VicS_LostLevel)
+        && !flag_is_set(player->allocflags, PlaF_CompCtrl);
 }
 
-static TbBool counts_for_alliance_graph(const struct PlayerInfo *player, TbBool humans_only)
-{
-    return player_is_victory_candidate(player) && (!humans_only || ((player->allocflags & PlaF_CompCtrl) == 0));
-}
-
-// check that the graph of alliances among remaining (human/all) players is transitive and reflexive.
-TbBool victory_candidates_fully_allied(TbBool humans_only)
+// check if all undefeated human players form a "kernel"
+// of complete and fully-connected mutual alliances.
+// (On non-network games this is necessarily always true.)
+TbBool human_victory_kernel_exists(void)
 {
     for (PlayerNumber i = 0; i < PLAYERS_COUNT; i++) {
-        if (!counts_for_alliance_graph(get_player(i), humans_only)) {
+        if (!player_belongs_in_victory_kernel(get_player(i))) {
             continue;
         }
         for (PlayerNumber j = i + 1; j < PLAYERS_COUNT; j++) {
-            if (counts_for_alliance_graph(get_player(j), humans_only) && !players_are_mutual_allies(i, j)) {
+            if (player_belongs_in_victory_kernel(get_player(j)) && !players_are_mutual_allies(i, j)) {
                 return false;
             }
         }

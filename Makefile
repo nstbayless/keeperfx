@@ -109,7 +109,7 @@ CU_OBJS := \
 	$(OBJDIR)/cu/TestRun.o \
 	$(OBJDIR)/cu/Util.o
 LINKLIB = -mwindows \
-	-L"sdl/lib" -lSDL3 -lSDL3_mixer -lSDL3_image \
+	-L"sdl/lib" -lSDL3 -lSDL3_mixer -lSDL3_image -lSDL3_ttf \
 	-L"deps/ffmpeg/libavformat" -lavformat \
 	-L"deps/ffmpeg/libavcodec" -lavcodec \
 	-L"deps/ffmpeg/libswresample" -lswresample \

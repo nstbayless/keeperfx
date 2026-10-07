@@ -58,10 +58,10 @@ PKG_DOCS = \
 	pkg/keeperfx_readme.txt \
 	pkg/launcher-auto-file-removal.txt
 PKG_DLL = \
-	pkg/SDL2_net.dll \
-	pkg/SDL2_mixer.dll \
-	pkg/SDL2_image.dll \
-	pkg/SDL2.dll
+	pkg/SDL3_mixer.dll \
+	pkg/SDL3_image.dll \
+	pkg/SDL3_ttf.dll \
+	pkg/SDL3.dll
 PKG_FILES = \
 	$(PKG_CAMPAIGN_FILES) \
 	$(PKG_CREATURE_FILES) \
@@ -162,16 +162,16 @@ pkg/levels/%.toml: levels/%.toml | $(PKG_MAPPACK_DIRS)
 pkg/multiplayer/%: multiplayer/% | $(PKG_MP_MAPPACK_DIRS)
 	$(CP) $< $@
 
-pkg/SDL2_net.dll: sdl/for_final_package/SDL2_net.dll | pkg
+pkg/SDL3_mixer.dll: sdl/for_final_package/SDL3_mixer.dll | pkg
 	$(CP) $^ $@
 
-pkg/SDL2_mixer.dll: sdl/for_final_package/SDL2_mixer.dll | pkg
+pkg/SDL3_image.dll: sdl/for_final_package/SDL3_image.dll | pkg
 	$(CP) $^ $@
 
-pkg/SDL2_image.dll: sdl/for_final_package/SDL2_image.dll | pkg
+pkg/SDL3_ttf.dll: sdl/for_final_package/SDL3_ttf.dll | pkg
 	$(CP) $^ $@
 
-pkg/SDL2.dll: sdl/for_final_package/SDL2.dll | pkg
+pkg/SDL3.dll: sdl/for_final_package/SDL3.dll | pkg
 	$(CP) $^ $@
 
 $(PKG_NAME): $(PKG_FILES) | pkg

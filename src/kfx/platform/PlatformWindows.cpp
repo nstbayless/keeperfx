@@ -6,6 +6,7 @@
 #include "bflib_fileio.h"
 #include "config.h" // keeper_runtime_directory (GetUserPrefDir() SDL-less fallback)
 #include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
@@ -144,6 +145,12 @@ bool PlatformWindows::VideoInit()
     if (!SDL_Init(SDL_INIT_VIDEO))
         return false;
     atexit(SDL_Quit);
+    if (!TTF_Init())
+    {
+        SDL_Log("TTF_Init failed: %s", SDL_GetError());
+        return false;
+    }
+    atexit(TTF_Quit);
     return true;
 }
 

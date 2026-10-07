@@ -58,32 +58,38 @@ if(WIN32)
     set(SDL3_VER      3.4.12)
     set(SDL3_MIX_VER  3.2.4)
     set(SDL3_IMG_VER  3.4.4)
+    set(SDL3_TTF_VER  3.2.2)
 
     kfx_fetch(sdl3       "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VER}/SDL3-devel-${SDL3_VER}-mingw.tar.gz")
     kfx_fetch(sdl3_mixer "https://github.com/libsdl-org/SDL_mixer/releases/download/release-${SDL3_MIX_VER}/SDL3_mixer-devel-${SDL3_MIX_VER}-mingw.tar.gz")
     kfx_fetch(sdl3_image "https://github.com/libsdl-org/SDL_image/releases/download/release-${SDL3_IMG_VER}/SDL3_image-devel-${SDL3_IMG_VER}-mingw.tar.gz")
+    kfx_fetch(sdl3_ttf   "https://github.com/libsdl-org/SDL_ttf/releases/download/release-${SDL3_TTF_VER}/SDL3_ttf-devel-${SDL3_TTF_VER}-mingw.tar.gz")
 
     set(SDL3_PREFIX      "${D}/sdl3/SDL3-${SDL3_VER}/i686-w64-mingw32")
     set(SDL3_MIX_PREFIX  "${D}/sdl3_mixer/SDL3_mixer-${SDL3_MIX_VER}/i686-w64-mingw32")
     set(SDL3_IMG_PREFIX  "${D}/sdl3_image/SDL3_image-${SDL3_IMG_VER}/i686-w64-mingw32")
+    set(SDL3_TTF_PREFIX  "${D}/sdl3_ttf/SDL3_ttf-${SDL3_TTF_VER}/i686-w64-mingw32")
 
     add_library(kfx_sdl3 INTERFACE)
     # SDL3 headers live under include/SDL3/*.h; code uses <SDL3/SDL.h>,
-    # <SDL3_mixer/SDL_mixer.h>, <SDL3_image/SDL_image.h>.
+    # <SDL3_mixer/SDL_mixer.h>, <SDL3_image/SDL_image.h>, <SDL3_ttf/SDL_ttf.h>.
     target_include_directories(kfx_sdl3 INTERFACE
         "${SDL3_PREFIX}/include"
         "${SDL3_MIX_PREFIX}/include"
-        "${SDL3_IMG_PREFIX}/include")
+        "${SDL3_IMG_PREFIX}/include"
+        "${SDL3_TTF_PREFIX}/include")
     target_link_libraries(kfx_sdl3 INTERFACE
         "${SDL3_PREFIX}/lib/libSDL3.dll.a"
         "${SDL3_MIX_PREFIX}/lib/libSDL3_mixer.dll.a"
-        "${SDL3_IMG_PREFIX}/lib/libSDL3_image.dll.a")
+        "${SDL3_IMG_PREFIX}/lib/libSDL3_image.dll.a"
+        "${SDL3_TTF_PREFIX}/lib/libSDL3_ttf.dll.a")
 
     # SDL3 links dynamically, so ship its runtime DLLs (CPack picks these up).
     install(FILES
         "${SDL3_PREFIX}/bin/SDL3.dll"
         "${SDL3_MIX_PREFIX}/bin/SDL3_mixer.dll"
         "${SDL3_IMG_PREFIX}/bin/SDL3_image.dll"
+        "${SDL3_TTF_PREFIX}/bin/SDL3_ttf.dll"
         DESTINATION .)
 
     # --- Static libs from kfx-deps (mirror ../Makefile URLs/tags)
@@ -153,35 +159,45 @@ else()
     if(NOT SDL3_mixer_FOUND)
         pkg_check_modules(SDL3_mixer IMPORTED_TARGET SDL3_mixer)
     endif()
-    if(SDL3_FOUND AND SDL3_image_FOUND AND SDL3_mixer_FOUND)
+    pkg_check_modules(SDL3_ttf IMPORTED_TARGET sdl3-ttf)
+    if(NOT SDL3_ttf_FOUND)
+        pkg_check_modules(SDL3_ttf IMPORTED_TARGET SDL3_ttf)
+    endif()
+    if(SDL3_FOUND AND SDL3_image_FOUND AND SDL3_mixer_FOUND AND SDL3_ttf_FOUND)
         message(STATUS "SDL3: using system libraries (pkg-config)")
         target_link_libraries(kfx_sdl3 INTERFACE
-            PkgConfig::SDL3 PkgConfig::SDL3_image PkgConfig::SDL3_mixer)
+            PkgConfig::SDL3 PkgConfig::SDL3_image PkgConfig::SDL3_mixer PkgConfig::SDL3_ttf)
     else()
         message(STATUS "SDL3: system libraries not found; building from source (FetchContent)")
         include(FetchContent)
         set(SDL3_VER      3.4.12)
         set(SDL3_MIX_VER  3.2.4)
         set(SDL3_IMG_VER  3.4.4)
+        set(SDL3_TTF_VER  3.2.2)
         # Shared libs, no tests/examples. Use system decoder libraries rather than
         # vendored ones: the release source tarballs do not bundle the external/
         # decoder submodules, so VENDORED would fail. Distros that hit this path
-        # need libpng + the ogg/vorbis/flac/mpg123 -dev packages (see CI).
+        # need libpng + the ogg/vorbis/flac/mpg123 -dev packages, and SDL_ttf
+        # needs libfreetype + libharfbuzz -dev (see CI).
         set(SDL_TEST_LIBRARY   OFF CACHE BOOL "" FORCE)
         set(SDL_EXAMPLES       OFF CACHE BOOL "" FORCE)
         set(SDLIMAGE_SAMPLES   OFF CACHE BOOL "" FORCE)
         set(SDLIMAGE_VENDORED  OFF CACHE BOOL "" FORCE)
         set(SDLMIXER_SAMPLES   OFF CACHE BOOL "" FORCE)
         set(SDLMIXER_VENDORED  OFF CACHE BOOL "" FORCE)
+        set(SDLTTF_SAMPLES     OFF CACHE BOOL "" FORCE)
+        set(SDLTTF_VENDORED    OFF CACHE BOOL "" FORCE)
         FetchContent_Declare(SDL3
             URL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VER}/SDL3-${SDL3_VER}.tar.gz")
         FetchContent_Declare(SDL3_image
             URL "https://github.com/libsdl-org/SDL_image/releases/download/release-${SDL3_IMG_VER}/SDL3_image-${SDL3_IMG_VER}.tar.gz")
         FetchContent_Declare(SDL3_mixer
             URL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-${SDL3_MIX_VER}/SDL3_mixer-${SDL3_MIX_VER}.tar.gz")
-        FetchContent_MakeAvailable(SDL3 SDL3_image SDL3_mixer)
+        FetchContent_Declare(SDL3_ttf
+            URL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-${SDL3_TTF_VER}/SDL3_ttf-${SDL3_TTF_VER}.tar.gz")
+        FetchContent_MakeAvailable(SDL3 SDL3_image SDL3_mixer SDL3_ttf)
         target_link_libraries(kfx_sdl3 INTERFACE
-            SDL3::SDL3 SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer)
+            SDL3::SDL3 SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer SDL3_ttf::SDL3_ttf)
     endif()
 
     pkg_check_modules(FFMPEG     REQUIRED IMPORTED_TARGET libavformat libavcodec libswresample libavutil)

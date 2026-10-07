@@ -22,15 +22,16 @@ ARCH = i686-w64-mingw32
 SDL_MAIN_LIBRARY = sdl/lib/libSDL3.dll.a
 SDL_EXTENSION_LIBRARIES = \
 	sdl/lib/libSDL3_mixer.dll.a \
-	sdl/lib/libSDL3_image.dll.a
+	sdl/lib/libSDL3_image.dll.a \
+	sdl/lib/libSDL3_ttf.dll.a
 
 include prebuilds.mk
 
 .PHONY: clean-libsdl deep-clean-libsdl
 
-.INTERMEDIATE: libsdl libsdlmixer libsdlimage
+.INTERMEDIATE: libsdl libsdlmixer libsdlimage libsdlttf
 
-libexterns: libsdl libsdlmixer libsdlimage
+libexterns: libsdl libsdlmixer libsdlimage libsdlttf
 	touch libexterns
 
 clean-libexterns: clean-libsdl
@@ -130,6 +131,38 @@ sdl/$(SDL_IMAGE_PACKAGE):
 else
 
 $(error Cannot handle SDL_image library prebuild. You need to prepare the library manually.)
+
+endif
+
+##################
+
+ifneq (,$(findstring .tar.gz,$(SDL_TTF_PACKAGE)))
+
+libsdlttf: sdl/lib/libSDL3_ttf.dll.a
+
+sdl/lib/libSDL3_ttf.dll.a: sdl/$(SDL_TTF_PACKAGE)
+	-$(ECHO) 'Extracting package: $<'
+	$(MKDIR) sdl/lib sdl/include
+	cd "$(<D)"; \
+	tar -xzf "$(<F)"
+	$(CP) -r sdl/SDL3_ttf-*/$(ARCH)/include/* sdl/include/
+	$(CP) -r sdl/SDL3_ttf-*/$(ARCH)/lib/* sdl/lib/
+	$(CP) sdl/SDL3_ttf-*/$(ARCH)/bin/SDL3_ttf.dll sdl/for_final_package/
+	-$(ECHO) 'Finished extracting: $<'
+	-$(ECHO) ' '
+
+sdl/$(SDL_TTF_PACKAGE):
+	-$(ECHO) 'Downloading package: $@'
+	$(MKDIR) "$(@D)"
+	curl -L -o "$@.dl" "$(SDL_TTF_DOWNLOAD)"
+	tar -tzf "$@.dl"
+	$(MV) "$@.dl" "$@"
+	-$(ECHO) 'Finished downloading: $@'
+	-$(ECHO) ' '
+
+else
+
+$(error Cannot handle SDL_ttf library prebuild. You need to prepare the library manually.)
 
 endif
 

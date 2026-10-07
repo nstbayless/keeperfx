@@ -81,7 +81,8 @@ jobs:
         sudo apt update
         # SDL3 is not in Ubuntu 24.04 apt, so Dependencies.cmake builds it from
         # source (FetchContent). The libx11/gl/audio and image/mixer decoder
-        # packages below are SDL3's build deps. SDL_net is gone (native sockets).
+        # packages below are SDL3's build deps (freetype/harfbuzz for SDL_ttf).
+        # SDL_net is gone (native sockets).
         sudo apt install -y \
           build-essential \
           cmake \
@@ -121,6 +122,8 @@ jobs:
           libflac-dev \
           libmpg123-dev \
           libopusfile-dev \
+          libfreetype-dev \
+          libharfbuzz-dev \
           libminiupnpc-dev \
           libssl-dev \
           libzstd-dev \

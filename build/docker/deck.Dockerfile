@@ -29,4 +29,5 @@ RUN apt-get update -qq && apt-get install -y -qq \
     libxss-dev libxtst-dev libxkbcommon-dev libgl1-mesa-dev libegl1-mesa-dev \
     libdrm-dev libgbm-dev libasound2-dev libpulse-dev libdbus-1-dev libudev-dev \
     libpng-dev libjpeg-dev libogg-dev libvorbis-dev libflac-dev libmpg123-dev libopusfile-dev \
+    libfreetype-dev libharfbuzz-dev libfontconfig-dev \
   && rm -rf /var/lib/apt/lists/*

@@ -128,6 +128,8 @@ LINKLIB = -mwindows \
 LINKLIB += -lopengl32
 # DXGI display diagnostics (WindowCompositorWin.cpp).
 LINKLIB += -ldxgi
+# DirectWrite font lookup for system glyphs (bflib_sysglyph.cpp).
+LINKLIB += -ldwrite
 INCS = \
 	-I"src" \
 	-isystem"deps/zlib/include" \

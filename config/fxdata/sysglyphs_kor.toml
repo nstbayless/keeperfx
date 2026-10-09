@@ -1,0 +1,14 @@
+# System font configuration for Korean
+
+reference = "D55C"
+fonts = [
+    "GulimChe",
+    "DotumChe",
+    "Apple SD Gothic Neo",
+    "Baekmuk Gulim",
+    "Baekmuk Dotum",
+    "Noto Sans CJK KR",
+    "Malgun Gothic",
+    "Gulim",
+    "Dotum",
+]

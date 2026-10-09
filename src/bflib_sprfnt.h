@@ -134,6 +134,11 @@ void LbTextUseByteCoding(TbBool is_enabled);
 long text_string_height(int units_per_px, const char *text);
 short load_unifont_files();
 TbBool is_dbc_language(short language);
+TbBool LbTextDbcActive(void);
+TbBool LbTextDbcActiveForFont(const struct TbSpriteSheet *font);
+const struct AsianFont *LbTextFallbackDbcFont(void);
+int LbSprFontCharWidthExplicit(const struct TbSpriteSheet *font, const struct AsianFont *fallback,
+                               uint32_t chr, long units_per_px);
 unsigned char LbTextGetSpacesPerTab(void);
 
 // Todo : Refactor, these are used by GL, i hate this.

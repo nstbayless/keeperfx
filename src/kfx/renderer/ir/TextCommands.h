@@ -45,10 +45,10 @@ struct IRTextDrawCmd
 
     /* DBC/CJK font state, snapshotted the same way `font` is (see the struct
      * comment) rather than read live from bflib_sprfnt.c's active_dbcfont/
-     * dbc_colour0/1 globals at replay time. dbc_font is null whenever DBC
-     * text isn't active for this draw (is_dbc_language() false, or the
-     * language pack didn't load), in which case GL draws the western
-     * sprite-font path exactly as it already does. */
+     * dbc_colour0/1 globals at replay time. dbc_font is the loaded Unifont,
+     * or null if there is none. With dbc_enabled the whole draw uses it; otherwise
+     * the sprite font is used and dbc_font only draws the characters the
+     * sprite font has no glyph for. */
     const void* dbc_font    = nullptr; // struct AsianFont*, opaque here
     uint8_t     dbc_enabled = 0;
     long        dbc_colour0 = 0; // DBC face colour (palette index)

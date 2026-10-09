@@ -2,6 +2,7 @@
 #include "bflib_sprite.h"
 #include "bflib_filelst.h"
 #include "bflib_dernc.h"
+#include "bflib_sysglyph.h"
 #include "globals.h"        // SYNCLOG
 #include "kfx/renderer/RendererBridge_UI.h" // RendererForgetSprites
 #include <vector>
@@ -100,7 +101,9 @@ extern "C" TbSpriteSheet * load_spritesheet(const char * data_fname, const char 
         offset_list offsets;
         if (!load_index_file(*sheet, offsets, index_fname)) return nullptr;
         if (!load_data_file(*sheet, offsets, data_fname)) return nullptr;
-        return sheet.release();
+        TbSpriteSheet *loaded = sheet.release();
+        LbSysGlyphsSheetLoaded(loaded, data_fname);
+        return loaded;
     } catch (const std::exception & e) {
         ERRORLOG("Failed to load sprite sheet from %s %s: %s", data_fname, index_fname, e.what());
     }
@@ -109,6 +112,9 @@ extern "C" TbSpriteSheet * load_spritesheet(const char * data_fname, const char 
 
 extern "C" void free_spritesheet(TbSpriteSheet ** sheet)
 {
+    if (sheet && *sheet) {
+        LbSysGlyphsSheetFreed(*sheet);
+    }
     if (sheet && *sheet && !(*sheet)->sprites.empty()) {
         // IUIRenderer::ResolveSprite() caches handles keyed by TbSprite*; the
         // next sheet loaded can reuse this memory, so drop this sheet's entries.

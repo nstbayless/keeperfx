@@ -1,0 +1,14 @@
+# System font configuration for Chinese (Simplified)
+
+reference = "56FD"
+fonts = [
+    "SimHei",
+    "WenQuanYi Zen Hei",
+    "Hiragino Sans GB",
+    "Noto Sans CJK SC",
+    "Microsoft YaHei",
+    "NSimSun",
+    "SimSun",
+    "WenQuanYi Micro Hei",
+    "Droid Sans Fallback",
+]

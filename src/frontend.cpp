@@ -1353,7 +1353,7 @@ void draw_scrolling_text_at(long pos_x, long pos_y, long width, long height, str
   scrollwnd->window_height = area_height;
   text_height = scrollwnd->text_height;
   int tx_units_per_px;
-  if (dbc_initialized && dbc_enabled)
+  if (LbTextDbcActive())
   {
       tx_units_per_px = scale_value_by_horizontal_resolution((MyScreenWidth >= 640) ? 16 : 32);
   }

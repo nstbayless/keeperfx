@@ -1,0 +1,18 @@
+# System font configuration for Japanese
+# Also used as the default for non-CJK languages.
+
+# Use this arbitrary glyph (国) to verify a font is suitable Japanese font, and to decide on some metrics.
+reference = "56FD"
+
+# List of fonts to look for, in order of preference.
+fonts = [
+    "MS UI Gothic",
+    "MS Gothic",
+    "Ume UI Gothic",
+    "Hiragino Sans",
+    "Noto Sans CJK JP",
+    "MS PGothic",
+    "Ume P Gothic",
+    "M PLUS 1p",
+    "BIZ UDPGothic",
+]

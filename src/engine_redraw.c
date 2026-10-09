@@ -154,10 +154,10 @@ static void draw_creature_view_icons(struct Thing* creatng)
         }
         if (flag_is_set(spconf->spell_flags, CSAfF_Timebomb))
         {
-            int tx_units_per_px = (dbc_initialized && dbc_enabled) ? scale_ui_value_lofi(16) : (22 * units_per_pixel) / LbTextLineHeight();
+            int tx_units_per_px = LbTextDbcActive() ? scale_ui_value_lofi(16) : (22 * units_per_pixel) / LbTextLineHeight();
             int h = LbTextLineHeight() * tx_units_per_px / 16;
             int w = scale_ui_value_lofi(spr->SWidth);
-            if (dbc_initialized && dbc_enabled)
+            if (LbTextDbcActive())
             {
                 if (MyScreenHeight < 400)
                 {
@@ -1035,7 +1035,7 @@ void redraw_display(void)
     //LbTextSetWindow(0, 0, MyScreenWidth, MyScreenHeight);
     LbTextSetFont(winfont);
     RendererClearDrawFlags(Lb_TEXT_ONE_COLOR);
-    int tx_units_per_px = ( (MyScreenHeight < 400) && (dbc_initialized && dbc_enabled) ) ? scale_ui_value(32) : (22 * units_per_pixel) / LbTextLineHeight();
+    int tx_units_per_px = ( (MyScreenHeight < 400) && LbTextDbcActive() ) ? scale_ui_value(32) : (22 * units_per_pixel) / LbTextLineHeight();
     LbTextSetWindow(0, 0, MyScreenWidth, MyScreenHeight);
     if ((get_local_user_state()->init_flags & UsrIF_NewMPMessage) != 0)
     {
@@ -1124,7 +1124,7 @@ void redraw_display(void)
               w *= 2;
               h *= 3;
               text_w = w;
-              if (dbc_initialized && dbc_enabled)
+              if (LbTextDbcActive())
               {
                   text_w += 32;
                   text_x -= 12;

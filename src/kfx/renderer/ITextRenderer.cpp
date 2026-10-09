@@ -35,8 +35,8 @@ IRTextDrawCmd* ITextRenderer::AppendTextCommand(int32_t x, int32_t y, int32_t un
     LbTextGetClipWindow(&cmd.clip_x, &cmd.clip_y, &cmd.clip_w, &cmd.clip_h);
     cmd.font = lbFontPtr;
     cmd.font_generation = LbTextGetFontGeneration();
-    cmd.dbc_enabled = (dbc_initialized && dbc_enabled) ? 1 : 0;
-    cmd.dbc_font    = cmd.dbc_enabled ? (const void*)active_dbcfont : nullptr;
+    cmd.dbc_enabled = LbTextDbcActive() ? 1 : 0;
+    cmd.dbc_font    = (const void*)LbTextFallbackDbcFont();
     cmd.dbc_colour0 = dbc_colour0;
     cmd.dbc_colour1 = dbc_colour1;
     cmd.seq = m_text_write_cmds->NextSeq();

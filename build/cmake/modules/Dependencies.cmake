@@ -206,6 +206,7 @@ else()
     pkg_check_modules(SPNG       REQUIRED IMPORTED_TARGET spng)
     pkg_check_modules(MINIZIP    REQUIRED IMPORTED_TARGET minizip)
     pkg_check_modules(ZLIB       REQUIRED IMPORTED_TARGET zlib)
+    pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
 
     # Not reliably packaged; use the prebuilt lin64 static libs (as linux.mk does).
     kfx_fetch(astronomy "${KFX_DEPS_BASE}/20250418/astronomy-lin64.tar.gz")
@@ -268,7 +269,7 @@ function(kfx_link_dependencies TARGET)
         target_link_libraries(${TARGET} PRIVATE
             kfx_sdl3
             PkgConfig::FFMPEG PkgConfig::OPENAL PkgConfig::LUAJIT
-            PkgConfig::SPNG PkgConfig::MINIZIP PkgConfig::ZLIB
+            PkgConfig::SPNG PkgConfig::MINIZIP PkgConfig::ZLIB PkgConfig::FONTCONFIG
             astronomy_static centijson_static enet6_static curl_static
             centitoml
             miniupnpc natpmp dl)

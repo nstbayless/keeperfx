@@ -1,0 +1,10 @@
+# TTF glyphs for CJK languages etc.
+
+[render_font2-64]
+glyph_height = 15
+bottom_gap = 2
+cell_width = 16
+gradient = ["0 160 64 24", "70 216 96 69", "100 204 80 40"]
+shadow = "20 16 0"
+shadow_dx = 1
+shadow_dy = 1

@@ -26,6 +26,7 @@
 #include "bflib_inputctrl.h"
 #include "bflib_datetm.h"
 #include "bflib_sprfnt.h"
+#include "bflib_sysglyph.h"
 #include "bflib_fileio.h"
 #include "bflib_dernc.h"
 #include "bflib_sndlib.h"
@@ -2057,6 +2058,12 @@ static short resolve_startup_config(void)
 #endif
 
     process_cmdline_overrides();
+
+    if (!LbSysGlyphsInit())
+    {
+        ERRORLOG("System glyph configuration load error.");
+        return 0;
+    }
 
     requested_renderer_type = (int)RendererResolveType((RendererType)requested_renderer_type);
     return 1;

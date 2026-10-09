@@ -24,16 +24,16 @@ mkdir -p "$REPO/out"
 
 echo ">> configure + build + bundle in container"
 docker run --rm \
-    -v "${HOSTREPO}:/src:ro" \
-    -v "${HOSTREPO}/out:/out" \
+    -v "${HOSTREPO}:/src:ro,z" \
+    -v "${HOSTREPO}/out:/out:z" \
     "$IMAGE" bash -euc '
         mkdir -p /work
         find /src -maxdepth 1 -type f -exec cp {} /work/ \;
         cp -r /src/build /work/build
         cp -r /src/src   /work/src
+        cp -r /src/res   /work/res
         [ -d /src/tools ] && cp -r /src/tools /work/tools || true
-        mkdir -p /work/deps && cp -r /src/deps/centitoml /work/deps/centitoml
-        find /src/deps -maxdepth 1 -type f -name "*.h" -exec cp {} /work/deps/ \;
+        cp -r /src/deps  /work/deps
         cmake -S /work -B /work/out -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKFX_DECK_BUNDLE=ON
         cmake --build /work/out --target keeperfx -j"$(nproc)"
         rm -rf /out/keeperfx-deck
@@ -41,6 +41,6 @@ docker run --rm \
     '
 
 echo ">> bundle ready: $REPO/out/keeperfx-deck"
-echo "   glibc floor: $(docker run --rm -v "${HOSTREPO}/out:/out" "$IMAGE" \
+echo "   glibc floor: $(docker run --rm -v "${HOSTREPO}/out:/out:z" "$IMAGE" \
         bash -c "objdump -T /out/keeperfx-deck/keeperfx | grep -oE 'GLIBC_[0-9.]+' | sort -V | tail -1")"
 echo "   deploy it:   scripts/deploy-to-deck.sh --bundle out/keeperfx-deck --assets <your-game-dir>"

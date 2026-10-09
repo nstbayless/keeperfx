@@ -34,7 +34,9 @@ TbBool GLTextRenderer::DrawTextResized(int32_t x, int32_t y, int32_t units_per_p
     {
         DrawState state{ cmd->draw_colour, cmd->draw_flags };
         m_layout_out = m_text_write_cmds;
+        m_fallback_dbc = dbc_font ? nullptr : (const struct AsianFont*)cmd->dbc_font;
         Layout(*cmd, text, font, dbc_font, state);
+        m_fallback_dbc = nullptr;
         m_layout_out = nullptr;
     }
     cmd->glyph_count = (uint32_t)m_text_write_cmds->glyphs.Size() - cmd->glyph_first;
@@ -92,10 +94,10 @@ void GLTextRenderer::Layout(const IRTextDrawCmd& cmd, const char* text, const st
 
     auto char_width = [&](uint32_t chr) -> float {
         return dbc_font ? (float)LbDbcCharWidthM(dbc_font, chr, ups)
-                         : (float)(LbSprFontCharWidth(font, chr) * ups / 16);
+                         : (float)LbSprFontCharWidthExplicit(font, m_fallback_dbc, chr, ups);
     };
     auto word_width = [&](const char* s) -> float {
-        return (float)LbTextWordWidthExplicit(font, dbc_font, dbc_font != nullptr, s, ups);
+        return (float)LbTextWordWidthExplicit(font, dbc_font ? dbc_font : m_fallback_dbc, dbc_font != nullptr, s, ups);
     };
     auto is_duospace = [&](uint32_t chr) -> bool {
         return dbc_font && LbDbcIsDuospaceChar(dbc_font, chr);
@@ -273,8 +275,13 @@ void GLTextRenderer::FlushSegment(const char* sbuf, const char* ebuf, float x, f
         }
         else if (chr > 32)
         {
-            float w = dbc_font ? EmitDbcGlyph(dbc_font, chr, x, y, units_per_px, state, cmd.dbc_colour0, cmd.dbc_colour1)
-                                : EmitWesternGlyph(font, chr, x, y, units_per_px, state);
+            float w;
+            if (dbc_font)
+                w = EmitDbcGlyph(dbc_font, chr, x, y, units_per_px, state, cmd.dbc_colour0, cmd.dbc_colour1);
+            else if (m_fallback_dbc && LbFontCharSprite(font, chr) == nullptr)
+                w = EmitDbcGlyph(m_fallback_dbc, chr, x, y, units_per_px, state, cmd.dbc_colour0, cmd.dbc_colour1);
+            else
+                w = EmitWesternGlyph(font, chr, x, y, units_per_px, state);
             x += w;
         }
         else if (chr == '\t')

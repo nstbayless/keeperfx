@@ -32,6 +32,8 @@ private:
 
     // Glyph output of the layout in progress (game thread).
     TextCommandBuffers* m_layout_out = nullptr;
+    // Unifont for characters the sprite font lacks
+    const struct AsianFont* m_fallback_dbc = nullptr;
 
     // Mirrors LbTextDrawResizedImmediate()'s word-wrap loop.
     void Layout(const IRTextDrawCmd& cmd, const char* text, const struct TbSpriteSheet* font,

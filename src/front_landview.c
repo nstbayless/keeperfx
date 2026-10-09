@@ -1126,7 +1126,10 @@ TbBool frontmap_load(void)
     // append any custom ensigns to the sheet
     map_flag = load_custom_ensigns_into_sheet(map_flag, frontend_palette);      
     pop_palette_remap();
+    // Free whatever an earlier visit left before loading over the pointers.
+    free_font(&map_font);
     map_font = load_spritesheet("ldata/netfont.dat", "ldata/netfont.tab");
+    free_font(&winfont);
     winfont = load_font("data/font2-64.dat", "data/font2-64.tab");
     if (!map_flag)
     {
@@ -1439,6 +1442,8 @@ void frontmap_unload(void)
     set_pointer_graphic_none();
     unload_map_and_window();
     free_spritesheet(&map_flag);
+    free_font(&map_font);
+    free_font(&winfont);
     StopAllSamples();
     stop_description_speech();
     stop_music(false);

@@ -20,6 +20,7 @@
 #include "pre_inc.h"
 #include "kfx/renderer/RendererManager.h"
 #include "bflib_sprfnt.h"
+#include "bflib_sysglyph.h"
 
 #include <stdarg.h>
 #include "bflib_basics.h"
@@ -94,6 +95,22 @@ static TbGraphicsWindow lbTextJustifyWindow;
 static TbGraphicsWindow lbTextClipWindow;
 static unsigned char lbSpacesPerTab;
 struct AsianFont *active_dbcfont = NULL;
+
+TbBool LbTextDbcActiveForFont(const struct TbSpriteSheet *font)
+{
+    return dbc_initialized && dbc_enabled && !LbSysGlyphsAttached(font);
+}
+
+TbBool LbTextDbcActive(void)
+{
+    return LbTextDbcActiveForFont(lbFontPtr);
+}
+
+// GNU Unifont and co., used for missing glyphs
+const struct AsianFont *LbTextFallbackDbcFont(void)
+{
+    return (dbc_initialized && dbc_enabled) ? active_dbcfont : NULL;
+}
 
 
 
@@ -227,6 +244,16 @@ int LbDbcGetGlyphBits(const struct AsianFont *font, uint32_t chr,
     return 0;
 }
 
+// font width for sprite font (or Unifont fallback)
+int LbSprFontCharWidthExplicit(const struct TbSpriteSheet *font, const struct AsianFont *fallback,
+                               uint32_t chr, long units_per_px)
+{
+    const struct TbSprite *spr = LbFontCharSprite(font, chr);
+    if (spr != NULL)
+        return spr->SWidth * units_per_px / 16;
+    return LbDbcCharWidthM(fallback, chr, units_per_px);
+}
+
 /** Explicit-font word-width scan, mirroring LbTextWordWidthM() but taking
  *  the font/DBC-font as parameters instead of reading lbFontPtr/
  *  active_dbcfont -- needed by GL's deferred text path, which must not read
@@ -261,7 +288,7 @@ int LbTextWordWidthExplicit(const struct TbSpriteSheet *font, const struct Asian
         }
         else
         {
-            len += LbSprFontCharWidth(font, chr) * units_per_px / 16;
+            len += LbSprFontCharWidthExplicit(font, dbcfont, chr, units_per_px);
         }
     }
     return len;
@@ -523,11 +550,11 @@ static int8_t draw_dbc_char(uint32_t chr, struct AsianFontWindow *awind, long *p
         #define MAX_DBC_SPRITE_SIZE 8192
         unsigned char dest_pixel[MAX_DBC_SPRITE_SIZE] = { 0 };
         if (units_per_px != 16)
-        {            
+        {
             // Needs to be a multiple of 8
             int iDstSizeH = (units_per_px / 8) * 8;
             int iDstSizeW = (units_per_px * adraw.bits_width / 16 / 8) * 8;
-            
+
             float scale_factorX = (float)adraw.bits_width / (float)iDstSizeW;
             float scale_factorY = (float)adraw.bits_height / (float)iDstSizeH;
 
@@ -608,7 +635,7 @@ static int8_t draw_simpletext_char(uint32_t chr, long *pos_x, long pos_y, int un
 
 static int8_t draw_char(uint32_t chr, struct AsianFontWindow *awind, long *pos_x, long pos_y, int units_per_px)
 {
-    if ((dbc_initialized) && (dbc_enabled))
+    if (LbTextDbcActive())
     {
         return draw_dbc_char(chr, awind, pos_x, pos_y, units_per_px);
     } else
@@ -815,7 +842,7 @@ TbBool LbTextDrawResizedImmediate(int posx, int posy, int units_per_px, const ch
     const char *draw_buffer = text;
 
     const char* sbuf = draw_buffer;
-    
+
     for (ebuf=draw_buffer; *ebuf != '\0'; )
     {
         const char* text_backup_pointer = ebuf;
@@ -1001,7 +1028,7 @@ TbBool LbTextDrawResizedFmt(int posx, int posy, int units_per_px, const char *fm
  */
 int LbTextLineHeight(void)
 {
-    if ((dbc_initialized) && (dbc_enabled))
+    if (LbTextDbcActive())
     {
       return dbc_char_height(0xFFFF);
     } else
@@ -1012,7 +1039,7 @@ int LbTextLineHeight(void)
 
 int LbTextHeight(const char *text)
 {
-    if ((dbc_initialized) && (dbc_enabled))
+    if (LbTextDbcActive())
     {
       return dbc_char_height(0xFFFF);
     } else
@@ -1039,19 +1066,19 @@ static long dbc_char_widthM(unsigned long chr, long units_per_px)
 
 int LbTextCharWidthM(const uint32_t chr, long units_per_px)
 {
-    if ((dbc_initialized) && (dbc_enabled))
+    if (LbTextDbcActive())
     {
         return dbc_char_widthM(chr, units_per_px);
     }
     else
     {
-        return LbSprFontCharWidth(lbFontPtr, chr) * units_per_px / 16;
+        return LbSprFontCharWidthExplicit(lbFontPtr, LbTextFallbackDbcFont(), chr, units_per_px);
     }
 }
 
 int LbTextCharWidth(const uint32_t chr)
 {
-    if ((dbc_initialized) && (dbc_enabled))
+    if (LbTextDbcActive())
     {
       return dbc_char_width(chr);
     } else
@@ -1226,7 +1253,7 @@ int LbTextStringWidth(const char *text)
 
 int LbTextStringWidthM(const char *text, long units_per_px)
 {
-    if ((dbc_initialized) && (dbc_enabled))
+    if (LbTextDbcActive())
     {
         return LbTextStringPartWidthM(text, INT_MAX, units_per_px);
     }
@@ -1260,7 +1287,7 @@ int LbTextWordWidthM(const char *str, long units_per_px)
         if ((chr == ' ') || (chr == '\t') || (chr == '\0') || (chr == '\r') || (chr == '\n'))
             break;
 
-        if ((dbc_initialized) && (dbc_enabled))
+        if (LbTextDbcActive())
         {
             if (is_duospace_char(chr))
             {
@@ -1273,7 +1300,7 @@ int LbTextWordWidthM(const char *str, long units_per_px)
         }
         else
         {
-           len += LbSprFontCharWidth(lbFontPtr, chr) * units_per_px / 16; 
+            len += LbSprFontCharWidthExplicit(lbFontPtr, LbTextFallbackDbcFont(), chr, units_per_px);
         }
     }
     return len;
@@ -1557,7 +1584,7 @@ const struct TbSprite * LbFontCharSprite(const struct TbSpriteSheet * font, cons
         {0x0407, 185}, {0x0457, 108}, {0x0456, 74 }, {0x0406, 42 },
         {0x0404, 223}, {0x0454, 224}, {0x0490, 225}, {0x0491, 226},
         {0x0451, 106}, {0x0401, 180},
-        {0x2019, 8  }, {0x2014, 14 }, 
+        {0x2019, 8  }, {0x2014, 14 },
         {0x00C7, 97 }, {0x00FC, 98 }, {0x00E9, 99 }, {0x00E2, 100},
         {0x00E4, 101}, {0x00E0, 102}, {0x00E5, 103}, {0x00E7, 104},
         {0x00EA, 105}, {0x00EB, 106}, {0x00E8, 107}, {0x00EF, 108},
@@ -1596,7 +1623,7 @@ const struct TbSprite * LbFontCharSprite(const struct TbSpriteSheet * font, cons
     }
     if (sprite_index == 0)
     {
-        return NULL;
+        return LbSysGlyphSprite(font, codepoint);
     }
     return get_sprite(font, sprite_index);
 }
@@ -1707,7 +1734,7 @@ short load_unifont_files()
 
 TbBool is_dbc_language(short language)
 {
-    return (language == Lang_Japanese) || (language == Lang_ChineseInt) || 
+    return (language == Lang_Japanese) || (language == Lang_ChineseInt) ||
            (language == Lang_ChineseTra) || (language == Lang_Korean);
 }
 

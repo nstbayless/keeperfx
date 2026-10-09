@@ -1,0 +1,13 @@
+# System font configuration for Chinese (Traditional)
+
+reference = "570B"
+fonts = [
+    "Microsoft JhengHei",
+    "WenQuanYi Zen Hei",
+    "PingFang TC",
+    "Noto Sans CJK TC",
+    "MingLiU",
+    "PMingLiU",
+    "WenQuanYi Micro Hei",
+    "Droid Sans Fallback",
+]

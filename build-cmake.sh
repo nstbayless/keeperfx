@@ -43,7 +43,7 @@ if [ "${USE_DOCKER:-0}" = "1" ]; then
               libgbm-dev libgl1-mesa-dev libegl1-mesa-dev libasound2-dev \
               libpulse-dev libdbus-1-dev libudev-dev \
               libpng-dev libjpeg-dev libogg-dev libvorbis-dev libflac-dev \
-              libmpg123-dev libopusfile-dev"
+              libmpg123-dev libopusfile-dev libfreetype-dev libharfbuzz-dev libfontconfig-dev"
     else
         PKGS="g++-mingw-w64-i686 cmake ninja-build git curl ca-certificates"
     fi

@@ -361,7 +361,7 @@ void update_local_view_prediction(const struct Packet *pckt)
     } else if ((pckt->action == PckA_LoadViewType && pckt->actn_par1 == PVT_DungeonTop)
             || (pckt->action == PckA_ZoomFromMap && !parchment_map_fade_enabled())) {
         local_state.view_type = PVT_DungeonTop;
-        toggle_status_menu((game.operation_flags & GOF_ShowPanel) != 0);
+        toggle_status_menu(local_state.show_panel);
     }
 }
 
@@ -411,7 +411,7 @@ void replay_freecam_set_map(TbBool on)
         return;
     }
     local_state.replay_view_type = on ? PVT_MapScreen : PVT_DungeonTop;
-    toggle_status_menu(on ? 0 : ((game.operation_flags & GOF_ShowPanel) != 0));
+    toggle_status_menu(on ? 0 : local_state.show_panel);
 }
 
 void replay_freecam_jump(MapSubtlCoord stl_x, MapSubtlCoord stl_y)

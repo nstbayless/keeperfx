@@ -868,7 +868,7 @@ void init_player(struct PlayerInfo *player, short no_explore)
         player->highlight_mode = settings.highlight_mode;
         player->roomspace_highlight_mode = settings.highlight_mode;
         player->roomspace_mode = settings.highlight_mode;
-        set_flag(game.operation_flags, GOF_ShowPanel);
+        local_state.show_panel = true;
         set_gui_visible(true);
         init_gui();
         turn_on_menu(GMnu_MAIN);

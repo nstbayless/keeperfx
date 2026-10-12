@@ -870,7 +870,7 @@ TbBool process_user_global_packet_action(NetUserId user)
       } else
       {
         if (get_local_user() == user)
-          toggle_status_menu((game.operation_flags & GOF_ShowPanel) != 0);
+          toggle_status_menu(local_state.show_panel);
         set_player_mode(player, PVT_DungeonTop);
       }
       return 0;

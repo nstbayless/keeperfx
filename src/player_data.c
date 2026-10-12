@@ -314,7 +314,14 @@ void clear_players(void)
     bad_player.id_number = PLAYERS_COUNT;
     bad_player.user_id = -1;
     memset(game.user_states, 0, sizeof(game.user_states));
+    struct LocalState prev_local_state = local_state;
     memset(&local_state, 0, sizeof(local_state));
+    local_state.frame_skip = prev_local_state.frame_skip;
+    local_state.process_turn_time = prev_local_state.process_turn_time;
+    local_state.delta_time = prev_local_state.delta_time;
+    local_state.time_delta = prev_local_state.time_delta;
+    local_state.show_gui = prev_local_state.show_gui;
+    local_state.show_panel = prev_local_state.show_panel;
     memset(&bad_user_state, 0, sizeof(bad_user_state));
     game.human_players_count = 0;
     //game.game_kind = GKind_LocalGame;
@@ -538,7 +545,7 @@ void set_player_mode(struct PlayerInfo *player, unsigned short nview)
       }
       if (is_my_player(player)) {
         if (local_state.view_type == PVT_None) {
-          toggle_status_menu((game.operation_flags & GOF_ShowPanel) != 0);
+          toggle_status_menu(local_state.show_panel);
         }
         setup_engine_window(0, 0, MyScreenWidth, MyScreenHeight);
       }

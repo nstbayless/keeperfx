@@ -12,6 +12,7 @@
 #include "game_legacy.h"
 #include "globals.h"
 #include "gui_msgs.h"
+#include "replay.h"
 
 #include "config_creature.h"
 #include "config_terrain.h"
@@ -289,6 +290,38 @@ static void open_lua_script_for_mod_all(lua_State* L, LevelNumber lvnum)
     }
 }
 
+// replays must not touch the viewer's files; reads act as if the file is missing, writes succeed silently
+static const char replay_file_io_stubs[] =
+    "local function nop() end\n"
+    "local f = {}\n"
+    "function f:read() return nil end\n"
+    "function f:write() return self end\n"
+    "function f:lines() return nop end\n"
+    "function f:seek() return 0 end\n"
+    "function f:flush() return self end\n"
+    "function f:setvbuf() return true end\n"
+    "function f:close() return true end\n"
+    "io.open = function(_, mode)\n"
+    "    if mode == nil or mode:sub(1, 1) == 'r' and not mode:find('+', 1, true) then return nil, 'file access is disabled in replays' end\n"
+    "    return f\n"
+    "end\n"
+    "io.lines = function() return nop end\n"
+    "io.read = function() return nil end\n"
+    "io.write = function() return f end\n"
+    "io.input = function() return f end\n"
+    "io.output = function() return f end\n"
+    "io.close = function() return true end\n"
+    "io.popen = function() return nil, 'file access is disabled in replays' end\n"
+    "io.tmpfile = function() return f end\n"
+    "os.remove = function() return true end\n";
+
+static void disable_lua_file_io(lua_State *L)
+{
+    if (!replay.load_enable)
+        return;
+    CheckLua(L, luaL_dostring(L, replay_file_io_stubs), "replay_file_io_stubs");
+}
+
 
 /* @comment
  *     The loading items of open_lua_script and open_lua_script_for_mod need to be consistent.
@@ -299,6 +332,7 @@ TbBool open_lua_script(LevelNumber lvnum)
 
     luaL_openlibs(Lvl_script);
     disable_lua_functions(Lvl_script);
+    disable_lua_file_io(Lvl_script);
 
     lua_set_random_seed(game.action_random_seed);
 

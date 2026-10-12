@@ -287,7 +287,7 @@ void init_keeper(void)
     game.comp_player_creatrsonly = (comp_player_conf.player_assist_default == comp_player_conf.computer_assist_types[3]);
     game.creatures_tend_imprison = 0;
     game.creatures_tend_flee = 0;
-    game.operation_flags |= GOF_ShowPanel;
+    local_state.show_panel = true;
     game.view_mode_flags |= (GNFldD_StatusPanelDisplay | GNFldD_RoomFlameProcessing);
     init_censorship();
     SYNCDBG(9,"Finished");
@@ -436,7 +436,7 @@ short setup_game(void)
       }
   }
 
-  game.frame_skip = start_params.frame_skip;
+  local_state.frame_skip = start_params.frame_skip;
   redetect_screen_refresh_rate_for_draw();
 
   // Intro problems shouldn't force the game to quit,
@@ -1591,7 +1591,7 @@ void update_frontend_delta_time()
     const int64_t ns = now - prev;
     prev = now;
     const long double dt = ns / 1e9L * turns_per_second;
-    game.delta_time = min(max(dt, 0.L), 1.L);
+    local_state.delta_time = min(max(dt, 0.L), 1.L);
 }
 
 void update_gameplay_delta_time()
@@ -1606,9 +1606,9 @@ void update_gameplay_delta_time()
         const long double turns = seconds * turns_per_second;
         const long double frames = seconds * fps_limit_current;
 
-        game.process_turn_time += turns * multiplayer_clock_adjust * max(game.frame_skip, 1);
+        local_state.process_turn_time += turns * multiplayer_clock_adjust * max(local_state.frame_skip, 1);
 
-        // This sets game.delta_time, which is used to pace locally-displayed
+        // This sets local_state.delta_time, which is used to pace locally-displayed
         // things (eg. tooltip scroll speed).  It should not be affected by
         // multiplayer clock adjustment or frameskip.
         time_since_last_draw += turns;
@@ -1618,8 +1618,8 @@ void update_gameplay_delta_time()
     } else {
         // Set to 1 so that these variables don't affect anything. (if something is multiplied by 1 it doesn't change)
         time_since_last_draw = 1;
-        game.delta_time = 1;
-        game.process_turn_time = 1;
+        local_state.delta_time = 1;
+        local_state.process_turn_time = 1;
         process_frame_time = 1;
     }
 }

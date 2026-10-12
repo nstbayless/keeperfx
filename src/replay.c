@@ -38,6 +38,7 @@
 #include "spdigger_stack.h"
 #include "keeperfx.hpp"
 #include "net_resync.h"
+#include "replay_rewind.h"
 #include "post_inc.h"
 
 #ifdef __cplusplus
@@ -389,17 +390,6 @@ static TbBool skip_packet_bytes(size_t len)
     return true;
 }
 
-struct PacketDecoderState {
-    int32_t file_pos;
-    uint32_t bits_acc;
-    int bits_count;
-    uint32_t dec_zeros;
-    unsigned char dec_lit[4];
-    int dec_lit_pos;
-    int dec_lit_len;
-    uint32_t dec_raw_left;
-};
-
 static void save_packet_decoder_state(struct PacketDecoderState *st)
 {
     st->file_pos = LbFilePosition(replay.fp);
@@ -422,6 +412,24 @@ static TbBool restore_packet_decoder_state(const struct PacketDecoderState *st)
     packet_dec_lit_len = st->dec_lit_len;
     packet_dec_raw_left = st->dec_raw_left;
     return (LbFileSeek(replay.fp, st->file_pos, Lb_FILE_SEEK_BEGINNING) >= 0);
+}
+
+void replay_save_reader_pos(struct ReplayReaderPos *pos)
+{
+    save_packet_decoder_state(&pos->dec);
+    memcpy(pos->codec_prev, packet_codec_prev, sizeof(packet_codec_prev));
+    pos->pckt_gameturn = replay.pckt_gameturn;
+}
+
+TbBool replay_restore_reader_pos(const struct ReplayReaderPos *pos)
+{
+    memcpy(packet_codec_prev, pos->codec_prev, sizeof(packet_codec_prev));
+    replay.pckt_gameturn = pos->pckt_gameturn;
+    free(pending_resync);
+    pending_resync = NULL;
+    pending_resync_len = 0;
+    replay_checksum_pending = false;
+    return restore_packet_decoder_state(&pos->dec);
 }
 
 static TbBool write_packet_bytes(const void *buf, size_t len)
@@ -1458,6 +1466,7 @@ void verify_replay_checksum(void)
 void disable_packet_mode(void)
 {
     close_packet_file();
+    replay_rewind_reset();
     replay.load_enable = false;
     replay.save_enable = false;
     get_my_player()->cheats_allowed = game.easter_eggs_enabled;

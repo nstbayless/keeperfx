@@ -75,6 +75,7 @@
 #include "local_camera.h"
 #include "packets.h"
 #include "replay.h"
+#include "replay_rewind.h"
 #include "console_cmd.h"
 #include "engine_redraw.h"
 #include "timer.h"
@@ -536,42 +537,42 @@ static TbBool check_if_mouse_is_over_button(const struct GuiButton *gbtn)
 
 static void clip_frame_skip(void)
 {
-  if (game.frame_skip > 512)
-    game.frame_skip = 512;
-  if (game.frame_skip < 0)
-    game.frame_skip = 0;
+  if (local_state.frame_skip > 512)
+    local_state.frame_skip = 512;
+  if (local_state.frame_skip < 0)
+    local_state.frame_skip = 0;
 }
 
 static void increaseFrameskip(void)
 {
     // Default no longer using frame_skip=1, which will not change the logic frame rate but the makes the game will less smooth. But it can still be passed in through parameters
 
-    if (game.frame_skip <= 1)
-        game.frame_skip = 2;
+    if (local_state.frame_skip <= 1)
+        local_state.frame_skip = 2;
     else
-        game.frame_skip <<= 1;
+        local_state.frame_skip <<= 1;
 
     clip_frame_skip();
     char speed_txt[256] = "normal";
-    if (game.frame_skip > 0)
-        sprintf(speed_txt, "x%d", game.frame_skip);
-    show_onscreen_msg(turns_per_second*(game.frame_skip+1), "Fast Forward %s", speed_txt);
+    if (local_state.frame_skip > 0)
+        sprintf(speed_txt, "x%d", local_state.frame_skip);
+    show_onscreen_msg(turns_per_second*(local_state.frame_skip+1), "Fast Forward %s", speed_txt);
 }
 
 static void decreaseFrameskip(void)
 {
     // Defaul no longer using frame_skip=1, which will not change the logic frame rate but the makes the game will less smooth. But it can still be passed in through parameters
-    if (game.frame_skip <= 2)
-        game.frame_skip = 0;
+    if (local_state.frame_skip <= 2)
+        local_state.frame_skip = 0;
     else
-        game.frame_skip >>= 1;
+        local_state.frame_skip >>= 1;
 
 
     clip_frame_skip();
     char speed_txt[256] = "normal";
-    if (game.frame_skip > 0)
-        sprintf(speed_txt, "x%d", game.frame_skip);
-    show_onscreen_msg(turns_per_second*(game.frame_skip+1), "Fast Forward %s", speed_txt);
+    if (local_state.frame_skip > 0)
+        sprintf(speed_txt, "x%d", local_state.frame_skip);
+    show_onscreen_msg(turns_per_second*(local_state.frame_skip+1), "Fast Forward %s", speed_txt);
 }
 
 /**
@@ -671,7 +672,7 @@ static TbBool replay_camera_keys_pressed(void)
         if (is_game_key_pressed(keys[i], false, false))
             return true;
     }
-    if (left_button_clicked && ((game.operation_flags & GOF_ShowGui) != 0))
+    if (left_button_clicked && local_state.show_gui)
     {
         long x;
         long y;
@@ -833,7 +834,7 @@ static long get_small_map_inputs(long x, long y, long zoom, struct Packet *pckt)
   long curr_my = GetMouseY();
   if (!grabbed_small_map)
     game.small_map_state = 0;
-  if (((game.operation_flags & GOF_ShowGui) != 0) && (mouse_is_over_panel_map(x,y) || grabbed_small_map))
+  if (local_state.show_gui && (mouse_is_over_panel_map(x,y) || grabbed_small_map))
   {
     if (left_button_clicked)
     {
@@ -1162,7 +1163,7 @@ static TbBool get_level_lost_inputs(void)
         if (player->view_mode != PVM_ParchFadeOut)
         {
           turn_off_all_window_menus();
-          set_flag_value(game.operation_flags, GOF_ShowPanel, (game.operation_flags & GOF_ShowGui) != 0);
+          local_state.show_panel = local_state.show_gui;
           if (parchment_map_fade_enabled())
           {
                 set_players_packet_action(player, PckA_SetViewType, PVT_MapFadeIn, 0,0,0);
@@ -1183,7 +1184,7 @@ static TbBool get_level_lost_inputs(void)
         inp_done = menu_is_active(GMnu_SPELL_LOST);
         if ( !inp_done )
         {
-          if ((game.operation_flags & GOF_ShowGui) != 0)
+          if (local_state.show_gui)
           {
             initialise_tab_tags_and_menu(GMnu_SPELL);
             turn_off_all_panel_menus();
@@ -1245,7 +1246,7 @@ static TbBool get_level_lost_inputs(void)
       case PVT_MapScreen:
         if (menu_is_active(GMnu_SPELL_LOST))
         {
-          if ((game.operation_flags & GOF_ShowGui) != 0)
+          if (local_state.show_gui)
             turn_off_menu(GMnu_SPELL_LOST);
         }
         break;
@@ -2799,6 +2800,7 @@ static short get_packet_load_game_inputs(void)
             process_pause_packet(0, 0);
         }
         clear_flag(game.operation_flags, GOF_Paused);
+        replay_rewind_capture();
         load_packets_for_turn(replay.pckt_gameturn);
         replay.pckt_gameturn++;
     }
@@ -3077,7 +3079,7 @@ static TbBool active_menu_functions_while_paused(void)
  */
 static short get_inputs(void)
 {
-    move_camera_this_turn = game.frame_skip == 0 || game.play_gameturn % game.frame_skip == 0;
+    move_camera_this_turn = local_state.frame_skip == 0 || game.play_gameturn % local_state.frame_skip == 0;
 
     if ((game.mode_flags & MFlg_IsDemoMode) != 0)
     {

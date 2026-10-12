@@ -318,6 +318,13 @@ extern struct LocalState {
     TbBool replay_detached;
     unsigned char replay_view_type;
     unsigned char replay_cam_idx;
+    int32_t frame_skip;
+    long double process_turn_time;
+    float delta_time;
+    uint32_t time_delta;
+    TbBool show_gui;
+    TbBool show_panel;
+    TbBool rewinding;
 } local_state;
 
 extern unsigned short player_colors_map[];

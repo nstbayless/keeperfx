@@ -15,9 +15,8 @@
 #include "gui_tooltips.h"          /* draw_tooltip */
 #include "power_hand.h"            /* draw_power_hand */
 #include "gui_boxmenu.h"           /* gui_draw_all_boxes */
-#include "player_data.h"           /* struct PlayerInfo, PVT_MapScreen/MapFadeIn/MapFadeOut */
-#include "game_legacy.h"           /* game, GOF_ShowGui */
-#include "bflib_basics.h"          /* flag_is_set, TbBool */
+#include "player_data.h"           /* struct PlayerInfo, PVT_MapScreen/MapFadeIn/MapFadeOut, local_state */
+#include "bflib_basics.h"          /* TbBool */
 
 #include "post_inc.h"
 
@@ -48,7 +47,7 @@ void GameUI::DrawFrame(struct PlayerInfo* player)
     if (!IsActiveForCurrentView(player))
         return;
 
-    TbBool show_sidebar = flag_is_set(game.operation_flags, GOF_ShowGui);
+    TbBool show_sidebar = local_state.show_gui;
 
     if (show_sidebar)
     {

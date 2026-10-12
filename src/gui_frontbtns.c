@@ -408,7 +408,7 @@ void gui_round_glass_background(struct GuiMenu *gmnu)
     int fade_h;
     int i;
     fade_h = 0;
-    if (game.time_delta < 12)
+    if (local_state.time_delta < 12)
     {
       if (gmnu->visual_state == 1) {
           gmnu->fade_time = 1;
@@ -456,7 +456,7 @@ void gui_pretty_background(struct GuiMenu *gmnu)
     int i;
     fade_w = 0;
     fade_h = 0;
-    if (game.time_delta < 12)
+    if (local_state.time_delta < 12)
     {
       if (gmnu->visual_state == 1) {
           gmnu->fade_time = 1;

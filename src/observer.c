@@ -149,10 +149,10 @@ void observer_update_vision(void)
     }
 }
 
-static PlayerNumber position_observer_camera_at_random_heart(PlayerNumber fallback_player, PlayerBitFlags players)
+static PlayerNumber position_observer_camera_at_starting_heart(PlayerNumber fallback_player, PlayerBitFlags players)
 {
-    struct Thing *starting_heart = NULL;
-    int32_t heart_count = 0;
+    struct Thing *hearts[PLAYERS_COUNT];
+    uint32_t heart_count = 0;
     for (PlayerNumber i = 0; i < PLAYERS_COUNT; i++) {
         if (!flag_is_set(players, to_flag(i))) {
             continue;
@@ -161,12 +161,11 @@ static PlayerNumber position_observer_camera_at_random_heart(PlayerNumber fallba
         if (!thing_exists(heart)) {
             continue;
         }
-        heart_count += 1;
-        if (UNSYNC_RANDOM(heart_count) == 0) {
-            starting_heart = heart;
-        }
+        hearts[heart_count++] = heart;
     }
-    if (starting_heart != NULL) {
+    if (heart_count > 0) {
+        const uint32_t pick = game.player_random_seed + netstate.my_id;
+        struct Thing *starting_heart = hearts[pick % heart_count];
         local_observer_user_state.dungeon_camera.x = starting_heart->mappos.x.val;
         local_observer_user_state.dungeon_camera.y = starting_heart->mappos.y.val;
         return starting_heart->owner;
@@ -369,7 +368,7 @@ void observer_init(PlayerNumber camera_player_number)
         }
     }
     if (!replay.load_enable) {
-        watched_player = position_observer_camera_at_random_heart(watched_player, starting_players);
+        watched_player = position_observer_camera_at_starting_heart(watched_player, starting_players);
     }
     observer_initialized = true;
     observer_select_player(watched_player);

@@ -21,6 +21,7 @@
 #include "bflib_basics.h"
 #include "globals.h"
 #include "net_main.h"
+#include "packets.h"
 #include "net_checksums.h"
 #include "user_prefs.h"
 #include <stdint.h>
@@ -68,6 +69,24 @@ struct PacketSaveHead {
 
 #pragma pack()
 /******************************************************************************/
+
+// where the replay reader is in the packet file, for rewinding
+struct PacketDecoderState {
+    int32_t file_pos;
+    uint32_t bits_acc;
+    int bits_count;
+    uint32_t dec_zeros;
+    unsigned char dec_lit[4];
+    int dec_lit_pos;
+    int dec_lit_len;
+    uint32_t dec_raw_left;
+};
+
+struct ReplayReaderPos {
+    struct PacketDecoderState dec;
+    struct Packet codec_prev[MAX_NET_USERS];
+    GameTurn pckt_gameturn;
+};
 
 /*
  * State relating to watching and saving replays, including whether replay mode is enabled.
@@ -120,6 +139,8 @@ void set_replay_playback_paused(TbBool paused);
 TbBool reinit_packets_after_load(void);
 void disable_packet_mode(void);
 TbBool verify_replay_map_checksums(void);
+void replay_save_reader_pos(struct ReplayReaderPos *pos);
+TbBool replay_restore_reader_pos(const struct ReplayReaderPos *pos);
 /******************************************************************************/
 #ifdef __cplusplus
 }

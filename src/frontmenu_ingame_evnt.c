@@ -50,6 +50,8 @@
 #include "local_camera.h"
 #include "sprites.h"
 #include "timer.h"
+#include "config_keeperfx.h"
+#include "replay_rewind.h"
 
 #include "keeperfx.hpp"
 #include "post_inc.h"
@@ -595,8 +597,15 @@ static const char *get_displayed_user_name(void)
 void draw_gameturn_timer(void)
 {
     char text[32];
-    snprintf(text, sizeof(text), "GameTurn %u", get_gameturn());
-    draw_bottom_right_text(text, 0);
+    int line = 0;
+    if (replay.load_enable && (replay_rewind_buffer_kb > 0)) {
+        snprintf(text, sizeof(text), "Rewind %.1f/%.0f MB", replay_rewind_buffer_used() / (1024.0 * 1024.0), replay_rewind_buffer_kb / 1024.0);
+        draw_bottom_right_text(text, line++);
+    }
+    if (!local_state.rewinding || !replay_rewind_at_limit() || ((get_time_tick_ns() / 250000000) % 2 == 0)) {
+        snprintf(text, sizeof(text), "%sGameTurn %u", local_state.rewinding ? "< " : "", get_gameturn());
+        draw_bottom_right_text(text, line);
+    }
 }
 
 void draw_watched_player_name(void)
@@ -615,6 +624,9 @@ void draw_watched_player_name(void)
         int32_t line = 0;
         if (gameturn_timer_enabled()) {
             line = 1;
+        }
+        if (replay.load_enable && (replay_rewind_buffer_kb > 0)) {
+            line++;
         }
         draw_bottom_right_text(text, line);
     }
@@ -642,7 +654,7 @@ TbBool script_timer_enabled(void)
 
 TbBool gameturn_timer_enabled(void)
 {
-    return flag_is_set(start_params.debug_flags, DFlg_ShowGameTurns);
+    return flag_is_set(start_params.debug_flags, DFlg_ShowGameTurns) || replay.load_enable;
 }
 
 void draw_script_timer(PlayerNumber plyr_idx, unsigned char timer_id, unsigned long limit, TbBool real)

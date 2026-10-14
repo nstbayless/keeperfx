@@ -339,6 +339,7 @@ extern struct LocalState {
     uint32_t time_delta;
     TbBool show_gui;
     TbBool show_panel;
+    TbBool rewinding;
 } local_state;
 
 extern unsigned short player_colors_map[];

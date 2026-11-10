@@ -7583,3 +7583,21 @@ msgstr "%s とホストのファイルが異なります"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "一人用（協力）..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "キャンペーン（協力）..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "再開"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "最初からプレイ"

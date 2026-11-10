@@ -7634,3 +7634,21 @@ msgstr "%s와(과) 호스트의 파일이 다릅니다"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "1인용 맵 (협동)..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "캠페인 (협동)..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "이어하기"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "처음부터 플레이"

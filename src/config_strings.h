@@ -521,6 +521,9 @@ enum GUIStrings {
     GUIStr_NetConnectionUnstable,
     GUIStr_NetFilesDiffer,
     GUIStr_NetLevelPacks,
+    GUIStr_NetCampaigns,
+    GUIStr_NetResume,
+    GUIStr_NetPlayFromStart,
     GuiStrEnd
 };
 

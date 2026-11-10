@@ -43,6 +43,7 @@
 #include "game_saves.h"
 #include "bflib_mouse.h"
 #include "front_simple.h"
+#include "front_network.h"
 #include "bflib_datetm.h"
 #include "bflib_inputctrl.h"
 #include "bflib_sndlib.h"
@@ -1039,8 +1040,10 @@ static TbBool wait_at_frontend(void)
           startup_network_game(&loop, true);
           break;
     case FeSt_START_MPLEVEL:
-          memset(&intralvl, 0, sizeof(struct IntralevelData));
-          clear_custom_intralevel_data();
+          if (!net_game_is_coop_campaign()) {
+              memset(&intralvl, 0, sizeof(struct IntralevelData));
+              clear_custom_intralevel_data();
+          }
           set_flag(local_system_flags, GSF_NetworkActive);
           skip_high_score_screen = 1;
           game.game_kind = GKind_MultiGame;

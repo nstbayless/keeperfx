@@ -1445,10 +1445,8 @@ void frontmap_unload(void)
     set_music_volume(settings.music_volume);
 }
 
-long frontmap_update(void)
+void frontmap_update_description_speech(void)
 {
-  SYNCDBG(8,"Starting");
-  landview_update_textbox_text();
   if ((mouse_over_lvnum > 0) && (playing_speech_lvnum != mouse_over_lvnum))
   {
       play_desc_speech_time = 0;
@@ -1459,6 +1457,13 @@ long frontmap_update(void)
       play_desc_speech_time = 0;
       play_current_description_speech(1);
   }
+}
+
+long frontmap_update(void)
+{
+  SYNCDBG(8,"Starting");
+  landview_update_textbox_text();
+  frontmap_update_description_speech();
   update_frontmap_ambient_sound();
 
   if ((map_info.fadeflags & MLInfoFlg_Zooming) != 0)

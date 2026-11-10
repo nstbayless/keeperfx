@@ -88,6 +88,9 @@ extern int8_t net_player_team[MAX_NET_USERS];
 extern int32_t net_lobby_max_players;
 extern PlayerBitFlags net_lobby_empty_seats;
 extern LevelNumber net_level;
+extern int8_t net_campaign_progress;
+extern TbBool net_campaign_resume;
+extern TbBool net_coop_stats_leave_requested;
 
 #pragma pack()
 /******************************************************************************/
@@ -95,7 +98,12 @@ TbBool net_player_colours_conflict(void);
 NetUserId net_lobby_primary_user(NetUserId user);
 TbBool net_lobby_computer_player(NetUserId user);
 TbBool net_lobby_force_coop(void);
+TbBool net_lobby_coop_campaign(void);
+TbBool net_game_is_coop(void);
+TbBool net_game_is_coop_campaign(void);
+void frontnet_coop_stats_update(void);
 void frontnet_select_coop_level(LevelNumber lvnum);
+void frontnet_select_coop_campaign(const char *fname, int8_t progress);
 void frontnet_cycle_player_setting(enum NetPlayerSettingKind kind, NetUserId user, TbBool backwards);
 void net_resolve_player_colours(int8_t player_colours[MAX_NET_USERS]);
 char net_alliances_from_player_colours(const int8_t player_colours[MAX_NET_USERS]);

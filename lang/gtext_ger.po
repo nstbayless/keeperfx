@@ -7901,3 +7901,21 @@ msgstr "Dateien von %s und Host weichen ab"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "Einzelspielerkarten (Koop)..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "Kampagnen (Koop)..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "Fortsetzen"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "Von vorn beginnen"

@@ -131,7 +131,7 @@ struct GuiButtonInit frontend_statistics_buttons[] = {
   { LbBtnT_NormalBtn,  BID_MENU_TITLE, 0, 0, NULL,               NULL,        NULL,                 0, 999,  30, 999,  30,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,      {84},            0, NULL },
   { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0, 999,  90, 999,  90,450,162, frontstats_draw_main_stats,        0, GUIStr_Empty,  0,       {0},            0, NULL },
   { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0, 999, 260, 999, 260,450,136, frontstats_draw_scrolling_stats,   0, GUIStr_Empty,  0,       {0},            0, NULL },
-  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontstats_leave,NULL,frontend_over_button,           18, 999, 404, 999, 404,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,      {83},            0, NULL },
+  { LbBtnT_NormalBtn,  BID_DEFAULT, 0, 0, frontstats_leave,NULL,frontend_over_button,           18, 999, 404, 999, 404,371, 46, frontend_draw_large_menu_button,   0, GUIStr_Empty,  0,      {83},            0, frontstats_leave_maintain },
   {-1,  BID_DEFAULT, 0, 0, NULL,               NULL,        NULL,                 0,   0,   0,   0,   0,  0,  0, NULL,                              0, GUIStr_Empty,  0,       {0},            0, NULL },
 };
 
@@ -2901,7 +2901,7 @@ FrontendMenuState frontend_setup_state(FrontendMenuState nstate)
           play_music_track(7);
           break;
       case FeSt_LEVEL_STATS:
-          if (network_is_active()) {
+          if (network_is_active() && !net_game_is_coop()) {
               LbNetwork_Stop();
           }
           turn_on_menu(GMnu_FESTATISTICS);
@@ -3928,6 +3928,15 @@ FrontendMenuState get_startup_menu_state(void)
   {
     player = get_my_player();
     lvnum = get_loaded_level_number();
+    if (net_game_is_coop() && ((player->display_flags & PlaF6_PlyrHasQuit) == 0)
+      && ((player->victory_state == VicS_WonLevel) || (player->victory_state == VicS_LostLevel)))
+    {
+        SYNCLOG("Co-op game summary state selected");
+        ustate->additional_flags &= ~UsrAF_UnlockedLordTorture;
+        net_coop_stats_leave_requested = false;
+        frontend_set_player_number(netstate.my_id);
+        return FeSt_LEVEL_STATS;
+    }
     if (network_is_active())
     { // If played real network game, then resulting screen isn't changed based on victory
         SYNCLOG("Network game summary state selected");

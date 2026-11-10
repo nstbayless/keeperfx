@@ -50,11 +50,14 @@
 #include "config_settings.h"
 #include "game_merge.h"
 #include "game_legacy.h"
+#include "game_saves.h"
 #include "net_matchmaking.h"
 #include "net_lan.h"
 #include "config_campaigns.h"
 #include "thing_data.h"
 #include "thing_list.h"
+#include "net_resync.h"
+#include "kfx/save/SaveManager.h"
 #include <stddef.h>
 #include <SDL3/SDL.h>
 #include "post_inc.h"
@@ -99,6 +102,9 @@ int8_t net_player_team[MAX_NET_USERS];
 int32_t net_lobby_max_players;
 PlayerBitFlags net_lobby_empty_seats;
 LevelNumber net_level;
+int8_t net_campaign_progress = -1;
+TbBool net_campaign_resume;
+TbBool net_coop_stats_leave_requested;
 static TbBool attempting_to_join_cancelled = false;
 static int32_t previous_active_players = 0;
 static struct ScreenPacket last_sent_screen_packet;
@@ -355,6 +361,21 @@ TbBool net_lobby_force_coop(void)
     return fgroup == FGrp_VarLevels || fgroup == FGrp_Campgn;
 }
 
+TbBool net_lobby_coop_campaign(void)
+{
+    return frontnet_lobby_campaign_fgroup() == FGrp_Campgn;
+}
+
+TbBool net_game_is_coop(void)
+{
+    return network_is_active() && net_lobby_force_coop();
+}
+
+TbBool net_game_is_coop_campaign(void)
+{
+    return network_is_active() && campaign.fgroup == FGrp_Campgn;
+}
+
 void current_campaign_net_name(char *buf, size_t size)
 {
     const char *prefix = "";
@@ -372,6 +393,75 @@ static PlayerNumber coop_player(void)
         return campaign.human_player;
     }
     return 0;
+}
+
+void frontnet_select_coop_campaign(const char *fname, int8_t progress)
+{
+    net_level = 0;
+    net_campaign_progress = progress;
+    net_campaign_resume = progress >= 0;
+    if (!change_campaign(CampgnT_Campaign, fname)) {
+        return;
+    }
+    char name[DISKPATH_SIZE];
+    current_campaign_net_name(name, sizeof(name));
+    frontnet_send_campaign_change_message(name);
+}
+
+struct NetCampaignProgress {
+    struct IntralevelData ilvl;
+    uint32_t custom_len;
+};
+
+static TbBool sync_coop_campaign_progress(void)
+{
+    struct NetCampaignProgress progress;
+    memset(&progress, 0, sizeof(progress));
+    intralvl.continue_level = encode_continue_level(get_continue_level_number());
+    memcpy(&progress.ilvl, &intralvl, sizeof(progress.ilvl));
+    progress.custom_len = custom_intralevel_data_len;
+    if (!LbNetwork_Resync(&progress, sizeof(progress))) {
+        return false;
+    }
+    if (progress.custom_len > CUSTOM_INTRALEVEL_DATA_MAX_SIZE) {
+        return false;
+    }
+    char *custom = NULL;
+    if (progress.custom_len > 0) {
+        custom = (char *)calloc(progress.custom_len, 1);
+        if (custom == NULL) {
+            return false;
+        }
+        if (network_is_host()) {
+            memcpy(custom, custom_intralevel_data, progress.custom_len);
+        }
+        if (!LbNetwork_Resync(custom, progress.custom_len)) {
+            free(custom);
+            return false;
+        }
+    }
+    TbBool result = true;
+    if (!network_is_host()) {
+        memcpy(&intralvl, &progress.ilvl, sizeof(intralvl));
+        set_continue_level_number(stored_continue_level(&intralvl));
+        result = set_custom_intralevel_data(custom, progress.custom_len);
+        update_extra_levels_visibility();
+    }
+    free(custom);
+    return result;
+}
+
+static TbBool frontnet_begin_coop_campaign(void)
+{
+    char fname[DISKPATH_SIZE];
+    snprintf(fname, sizeof(fname), "%s", campaign.fname);
+    if (!frontend_start_new_campaign(fname)) {
+        return false;
+    }
+    if (network_is_host() && net_campaign_resume && !SaveManager_ResumeCampaign(fname)) {
+        ERRORLOG("Unable to resume campaign '%s'", fname);
+    }
+    return sync_coop_campaign_progress();
 }
 
 void frontnet_select_coop_level(LevelNumber lvnum)
@@ -789,7 +879,13 @@ static void process_frontend_packet(NetUserId user)
           break;
       }
       fe_network_active = 1;
-      if (net_lobby_force_coop()) {
+      if (net_lobby_coop_campaign()) {
+          fe_computer_players = 0;
+          if (!frontnet_begin_coop_campaign()) {
+              ERRORLOG("Unable to share campaign progress");
+          }
+          frontend_set_state(FeSt_NETLAND_VIEW);
+      } else if (net_lobby_force_coop()) {
           fe_computer_players = 0;
           char name[DISKPATH_SIZE];
           current_campaign_net_name(name, sizeof(name));
@@ -839,6 +935,8 @@ static void process_frontend_packets(void)
     }
     nspckt->max_players = netstate.max_users;
     nspckt->level = net_level;
+    nspckt->campaign_progress = net_campaign_progress;
+    nspckt->campaign_resume = net_campaign_resume;
     net_lobby_max_players = netstate.max_users;
   }
   TbClockMSec now = LbTimerClock();
@@ -888,6 +986,8 @@ static void process_frontend_packets(void)
       net_lobby_max_players = host_packet->max_players;
     }
     net_level = host_packet->level;
+    net_campaign_progress = host_packet->campaign_progress;
+    net_campaign_resume = host_packet->campaign_resume;
     clear_unoccupied_users();
   }
   if ((frontend_alliances != -1) || network_is_host() || is_connected_screen_packet(&net_screen_packet[SERVER_ID])) {
@@ -1039,8 +1139,16 @@ void frontnet_service_setup(void)
     }
 }
 
+static void reset_lobby_selection(void)
+{
+    net_level = 0;
+    net_campaign_progress = -1;
+    net_campaign_resume = false;
+}
+
 void frontnet_session_setup(void)
 {
+    reset_lobby_selection();
     net_number_of_sessions = 0;
     if (net_player_name[0] == '\0') {
         snprintf(net_player_name, sizeof(net_player_name), "%s", net_config_info.net_player_name);
@@ -1056,13 +1164,71 @@ void frontnet_session_setup(void)
     }
 }
 
+static void leave_coop_stats(void)
+{
+    net_coop_stats_leave_requested = false;
+    if (campaign.fgroup == FGrp_Campgn) {
+        fe_network_active = 1;
+        frontend_set_state(FeSt_NETLAND_VIEW);
+    } else {
+        frontend_set_state(FeSt_NET_START);
+    }
+}
+
+static void process_coop_stats_packet(NetUserId user)
+{
+    if (user == SERVER_ID && screen_packet_action(&net_screen_packet[user]) == NetAct_LeaveStats) {
+        leave_coop_stats();
+    }
+}
+
+void frontnet_coop_stats_update(void)
+{
+    struct ScreenPacket *nspckt = &net_screen_packet[my_player_number];
+    nspckt->networkstatus_flags = NetStat_PlayerConnected;
+    if (net_coop_stats_leave_requested) {
+        screen_packet_set_action(nspckt, NetAct_LeaveStats);
+    }
+    TbClockMSec now = LbTimerClock();
+    TbBool send_frame = net_coop_stats_leave_requested || (now - last_sent_screen_packet_time >= LOBBY_SCREEN_PACKET_RESEND_INTERVAL_MS);
+    if (send_frame) {
+        last_sent_screen_packet_time = now;
+    }
+    if (LbNetwork_ExchangeLobby(nspckt, &net_screen_packet, sizeof(struct ScreenPacket), send_frame, process_coop_stats_packet)) {
+        ERRORLOG("LbNetwork_Exchange failed");
+    }
+    if (frontend_menu_state != FeSt_LEVEL_STATS) {
+        return;
+    }
+    if (netstate.my_id != SERVER_ID && netstate.users[SERVER_ID].progress == USER_UNUSED) {
+        LbNetwork_Stop();
+        if (!setup_network_service(net_service_index_selected)) {
+            frontend_set_state(FeSt_MAIN_MENU);
+        }
+        return;
+    }
+    if (network_is_host() && net_coop_stats_leave_requested) {
+        leave_coop_stats();
+    }
+}
+
+static void refresh_coop_campaign_progress(void)
+{
+    if (!network_is_host() || campaign.fgroup != FGrp_Campgn) {
+        return;
+    }
+    SaveManager_UpdateCampaignPercents(&campaigns_list);
+    const struct GameCampaign *campgn = find_campaign_in_list(campaign.fname, &campaigns_list);
+    if (campgn != NULL) {
+        net_campaign_progress = (int8_t)min((int)campgn->progress_percent, 100);
+        net_campaign_resume = net_campaign_progress >= 0;
+    }
+}
+
 void frontnet_start_setup(void)
 {
     set_selected_level_number(SINGLEPLAYER_NOTSTARTED);
-    net_level = 0;
-    if (campaign.fgroup != FGrp_MpLevels && mp_mappacks_list.items_num > 0) {
-        change_campaign(CampgnT_MultiplayerMappack, mp_mappacks_list.items[0].fname);
-    }
+    refresh_coop_campaign_progress();
     previous_active_players = 0;
     for (int i = 0; i < NetPlayerSetting_Count; i++) {
         net_player_settings[i].requested = -1;
@@ -1105,6 +1271,7 @@ void frontnet_skirmish_setup(void)
     net_user_info[SOLO_HUMAN_ID].network_user_active = 1;
     snprintf(net_user_info[SOLO_HUMAN_ID].name, sizeof(net_user_info[SOLO_HUMAN_ID].name), "%s", net_config_info.net_player_name);
     set_default_mp_mappack();
+    reset_lobby_selection();
     frontnet_start_setup();
 }
 

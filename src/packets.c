@@ -49,6 +49,8 @@
 #include "front_simple.h"
 #include "front_landview.h"
 #include "front_network.h"
+#include "game_saves.h"
+#include "kfx/save/SaveManager.h"
 #include "frontmenu_net.h"
 #include "frontend.h"
 #include "vidmode.h"
@@ -846,6 +848,19 @@ TbBool process_user_global_packet_action(NetUserId user)
       if (my_player) {
         turn_off_all_menus();
         free_swipe_graphic();
+      }
+      if (net_game_is_coop() && (victory_state == VicS_WonLevel || victory_state == VicS_LostLevel)) {
+        player->victory_state = victory_state;
+        if (net_game_is_coop_campaign()) {
+          if (victory_state == VicS_WonLevel && get_loaded_level_number() == get_continue_level_number()) {
+            move_campaign_to_next_level();
+          }
+          if (network_is_host()) {
+            SaveManager_SaveLevelProgress(get_loaded_level_number(), victory_state);
+          }
+        }
+        quit_game = 1;
+        return 0;
       }
       if (game.game_kind == GKind_MultiGame) {
         if (victory_state == VicS_WonLevel) {

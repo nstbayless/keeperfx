@@ -52,6 +52,7 @@
 #include "bflib_inputctrl.h"
 #include "kjm_input.h"
 #include "gui_frontmenu.h"
+#include "kfx/save/SaveManager.h"
 #include <ctype.h>
 #include "post_inc.h"
 
@@ -614,8 +615,15 @@ TbBool net_lobby_mappack_list_open;
 
 enum LobbyMappackListMode {
     LobbyList_Mappacks = 0,
+    LobbyList_CoopCampaigns,
     LobbyList_CoopPacks,
     LobbyList_CoopLevels,
+};
+
+enum LobbyMappackRow {
+    LobbyRow_MpPack = 0,
+    LobbyRow_Campaigns,
+    LobbyRow_LevelPacks,
 };
 
 static enum LobbyMappackListMode lobby_list_mode;
@@ -625,29 +633,40 @@ static short lobby_list_restore_fgroup;
 static int32_t lobby_mappack_list_count(void)
 {
     switch (lobby_list_mode) {
+    case LobbyList_CoopCampaigns:
+        return campaigns_list.items_num;
     case LobbyList_CoopPacks:
         return mappacks_list.items_num;
     case LobbyList_CoopLevels:
         return campaign.freeplay_levels_count;
     default:
-        return (int32_t)mp_mappacks_list.items_num + (mappacks_list.items_num > 0);
+        return (int32_t)mp_mappacks_list.items_num + (campaigns_list.items_num > 0) + (mappacks_list.items_num > 0);
     }
 }
 
-static int32_t lobby_coop_row(void)
+static int32_t lobby_coop_row_count(void)
 {
-    return mappacks_list.items_num > 0 ? (int32_t)mp_mappacks_list.ordered_num : -1;
+    return (campaigns_list.items_num > 0) + (mappacks_list.items_num > 0);
 }
 
-static TbBool lobby_mappack_list_is_coop(int32_t index)
+static enum LobbyMappackRow lobby_mappack_row(int32_t index)
 {
-    return lobby_list_mode == LobbyList_Mappacks && index == lobby_coop_row();
+    int32_t extra = index - (int32_t)mp_mappacks_list.ordered_num;
+    if (extra < 0 || extra >= lobby_coop_row_count()) {
+        return LobbyRow_MpPack;
+    }
+    if (extra == 0 && campaigns_list.items_num > 0) {
+        return LobbyRow_Campaigns;
+    }
+    return LobbyRow_LevelPacks;
 }
 
 static const struct GameCampaign *lobby_mp_mappack(int32_t index)
 {
-    int32_t coop_row = lobby_coop_row();
-    return &mp_mappacks_list.items[coop_row >= 0 && index > coop_row ? index - 1 : index];
+    if (index >= (int32_t)mp_mappacks_list.ordered_num) {
+        index -= lobby_coop_row_count();
+    }
+    return &mp_mappacks_list.items[index];
 }
 
 static const char *lobby_level_name(LevelNumber lvnum)
@@ -662,15 +681,28 @@ static const char *lobby_level_name(LevelNumber lvnum)
 static const char *lobby_mappack_list_name(int32_t index)
 {
     switch (lobby_list_mode) {
+    case LobbyList_CoopCampaigns: {
+        const struct GameCampaign *campgn = &campaigns_list.items[index];
+        if (campgn->progress_percent < 0) {
+            return campgn->display_name;
+        }
+        static char name[TEXT_BUFFER_LENGTH];
+        snprintf(name, sizeof(name), "%s *", campgn->display_name);
+        return name;
+    }
     case LobbyList_CoopPacks:
         return mappacks_list.items[index].display_name;
     case LobbyList_CoopLevels:
         return lobby_level_name(campaign.freeplay_levels[index]);
     default:
-        if (lobby_mappack_list_is_coop(index)) {
+        switch (lobby_mappack_row(index)) {
+        case LobbyRow_Campaigns:
+            return get_string(GUIStr_NetCampaigns);
+        case LobbyRow_LevelPacks:
             return get_string(GUIStr_NetLevelPacks);
+        default:
+            return lobby_mp_mappack(index)->display_name;
         }
-        return lobby_mp_mappack(index)->display_name;
     }
 }
 
@@ -686,16 +718,23 @@ static TbBool browsing_selected_coop_pack(void)
 
 static TbBool lobby_mappack_list_selected(int32_t index)
 {
+    short fgroup = frontnet_lobby_campaign_fgroup();
     switch (lobby_list_mode) {
+    case LobbyList_CoopCampaigns:
+        return fgroup == FGrp_Campgn && strcasecmp(campaigns_list.items[index].fname, campaign.fname) == 0;
     case LobbyList_CoopPacks:
-        return net_lobby_force_coop() && strcasecmp(mappacks_list.items[index].fname, campaign.fname) == 0;
+        return fgroup == FGrp_VarLevels && strcasecmp(mappacks_list.items[index].fname, campaign.fname) == 0;
     case LobbyList_CoopLevels:
-        return net_lobby_force_coop() && browsing_selected_coop_pack() && campaign.freeplay_levels[index] == net_level;
+        return fgroup == FGrp_VarLevels && browsing_selected_coop_pack() && campaign.freeplay_levels[index] == net_level;
     default:
-        if (lobby_mappack_list_is_coop(index)) {
-            return net_lobby_force_coop();
+        switch (lobby_mappack_row(index)) {
+        case LobbyRow_Campaigns:
+            return fgroup == FGrp_Campgn;
+        case LobbyRow_LevelPacks:
+            return fgroup == FGrp_VarLevels;
+        default:
+            return fgroup == FGrp_MpLevels && strcasecmp(lobby_mp_mappack(index)->fname, campaign.fname) == 0;
         }
-        return !net_lobby_force_coop() && strcasecmp(lobby_mp_mappack(index)->fname, campaign.fname) == 0;
     }
 }
 
@@ -757,10 +796,25 @@ static const char *lobby_option_value(int32_t option, char *value, size_t value_
         snprintf(value, value_size, "%d", net_lobby_max_players);
         return value;
     case LobbyOption_ComputerPlayers:
+        if (net_lobby_coop_campaign()) {
+            if (!net_campaign_resume) {
+                return NULL;
+            }
+            snprintf(value, value_size, "(%d%%)", (int)net_campaign_progress);
+            return value;
+        }
         return get_on_off_string(fe_computer_players);
     default:
         return NULL;
     }
+}
+
+static const char *lobby_option_label(int32_t option)
+{
+    if (option == LobbyOption_ComputerPlayers && net_lobby_coop_campaign()) {
+        return get_string(net_campaign_resume ? GUIStr_NetResume : GUIStr_NetPlayFromStart);
+    }
+    return get_string(lobby_option_labels[option]);
 }
 
 void frontnet_maintain_host_setting(struct GuiButton *gbtn)
@@ -772,11 +826,15 @@ void frontnet_maintain_lobby_option(struct GuiButton *gbtn)
 {
     frontnet_maintain_host_setting(gbtn);
     int32_t option = gbtn->btype_value;
+    TbBool hide_computer_players = net_lobby_force_coop() && !net_lobby_coop_campaign();
     int32_t row = option;
-    if (net_lobby_force_coop() && option > LobbyOption_ComputerPlayers) {
+    if (hide_computer_players && option > LobbyOption_ComputerPlayers) {
         row--;
     }
-    TbBool visible = !net_lobby_force_coop() || option != LobbyOption_ComputerPlayers;
+    TbBool visible = !hide_computer_players || option != LobbyOption_ComputerPlayers;
+    if (option == LobbyOption_ComputerPlayers && net_lobby_coop_campaign() && net_campaign_progress < 0) {
+        gbtn->flags &= ~LbBtnF_Enabled;
+    }
     place_lobby_button(gbtn, visible, LOBBY_OPTION_Y + row * LOBBY_OPTION_HEIGHT, LOBBY_OPTION_HEIGHT);
 }
 
@@ -811,6 +869,9 @@ void frontnet_draw_lobby_settings_header(struct GuiButton *gbtn)
     const char *text = frontend_button_caption_text(gbtn);
     if (net_lobby_mappack_list_open) {
         switch (lobby_list_mode) {
+        case LobbyList_CoopCampaigns:
+            text = get_string(GUIStr_MnuCampaigns);
+            break;
         case LobbyList_CoopPacks:
             text = get_string(GUIStr_MnuFreePlayLevels);
             break;
@@ -899,6 +960,9 @@ void frontnet_draw_lobby_settings_panel(struct GuiButton *gbtn)
 void frontnet_draw_lobby_option(struct GuiButton *gbtn)
 {
     int font_index = lobby_font(gbtn, frontend_mouse_over_button == gbtn->content.lval);
+    if (gbtn->btype_value == LobbyOption_ComputerPlayers && net_lobby_coop_campaign() && net_campaign_progress < 0) {
+        font_index = 3;
+    }
     char value_text[LOBBY_NUMBER_TEXT_LENGTH];
     const char *value = lobby_option_value(gbtn->btype_value, value_text, sizeof(value_text));
     int32_t value_width = gbtn->width / 2;
@@ -906,7 +970,7 @@ void frontnet_draw_lobby_option(struct GuiButton *gbtn)
         value_width = draw_lobby_text_right_aligned(gbtn->scr_pos_x + gbtn->width, gbtn->scr_pos_y, gbtn->width / 2, gbtn->height, font_index, false, value);
     }
     int32_t label_width = gbtn->width - value_width - LOBBY_OPTION_TEXT_GAP * lobby_menu_scale(gbtn) / 16;
-    draw_lobby_text(gbtn->scr_pos_x, gbtn->scr_pos_y, label_width, gbtn->height, font_index, 0, 0, get_string(lobby_option_labels[gbtn->btype_value]));
+    draw_lobby_text(gbtn->scr_pos_x, gbtn->scr_pos_y, label_width, gbtn->height, font_index, 0, 0, lobby_option_label(gbtn->btype_value));
 }
 
 void frontnet_mappack_up(struct GuiButton *gbtn)
@@ -1129,6 +1193,15 @@ static void select_mp_mappack(int32_t index)
     change_campaign(CampgnT_MultiplayerMappack, fname);
 }
 
+static void select_coop_campaign(int32_t index)
+{
+    if (lobby_mappack_list_selected(index)) {
+        return;
+    }
+    const struct GameCampaign *campgn = &campaigns_list.items[index];
+    frontnet_select_coop_campaign(campgn->fname, (int8_t)min((int)campgn->progress_percent, 100));
+}
+
 static struct GuiButton lobby_mappack_list_panel(struct GuiButton *gbtn)
 {
     struct GuiMenu *gmnu = get_active_menu(gbtn->gmenu_idx);
@@ -1287,6 +1360,10 @@ void frontnet_mappack_list_click(struct GuiButton *gbtn)
         return;
     }
     switch (lobby_list_mode) {
+    case LobbyList_CoopCampaigns:
+        close_lobby_list();
+        select_coop_campaign(index);
+        break;
     case LobbyList_CoopPacks:
         browse_coop_pack(mappacks_list.items[index].fname);
         break;
@@ -1296,13 +1373,22 @@ void frontnet_mappack_list_click(struct GuiButton *gbtn)
         close_lobby_list();
         break;
     default:
-        if (!lobby_mappack_list_is_coop(index)) {
+        switch (lobby_mappack_row(index)) {
+        case LobbyRow_MpPack:
             close_lobby_list();
             select_mp_mappack(index);
-        } else if (mappacks_list.items_num == 1) {
-            browse_coop_pack(mappacks_list.items[0].fname);
-        } else {
-            show_lobby_list(LobbyList_CoopPacks);
+            break;
+        case LobbyRow_Campaigns:
+            SaveManager_UpdateCampaignPercents(&campaigns_list);
+            show_lobby_list(LobbyList_CoopCampaigns);
+            break;
+        default:
+            if (mappacks_list.items_num == 1) {
+                browse_coop_pack(mappacks_list.items[0].fname);
+            } else {
+                show_lobby_list(LobbyList_CoopPacks);
+            }
+            break;
         }
         break;
     }
@@ -1311,6 +1397,12 @@ void frontnet_mappack_list_click(struct GuiButton *gbtn)
 void frontnet_change_lobby_option(struct GuiButton *gbtn)
 {
     int32_t option = gbtn->btype_value;
+    if (option == LobbyOption_ComputerPlayers && net_lobby_coop_campaign()) {
+        if (net_campaign_progress >= 0) {
+            net_campaign_resume = !net_campaign_resume;
+        }
+        return;
+    }
     if (option == LobbyOption_ComputerPlayers) {
         frontend_toggle_computer_players(gbtn);
         return;

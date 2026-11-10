@@ -39,6 +39,7 @@ LevelNumber move_campaign_to_prev_level(void);
 TbBool is_campaign_progress_level(const struct GameCampaign *campgn, LevelNumber lvnum);
 void mark_level_completed(struct IntralevelData *ilvl, LevelNumber lvnum);
 uint32_t encode_continue_level(LevelNumber lvnum);
+LevelNumber stored_continue_level(const struct IntralevelData *ilvl);
 LevelNumber resolve_campaign_progress(struct IntralevelData *ilvl, const struct GameCampaign *campgn);
 short campaign_progress_percent(const struct GameCampaign *campgn, const struct IntralevelData *ilvl, LevelNumber continue_lvnum);
 /******************************************************************************/

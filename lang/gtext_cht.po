@@ -7244,3 +7244,21 @@ msgstr "%s 與房主的檔案不同"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "單人地圖（合作）..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "戰役（合作）..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "繼續"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "從頭開始"

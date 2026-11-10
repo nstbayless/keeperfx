@@ -38,6 +38,7 @@
 #include "front_landview.h"
 #include "frontmenu_ingame_evnt.h"
 #include "frontend.h"
+#include "front_network.h"
 #include "player_data.h"
 #include "dungeon_data.h"
 #include "room_list.h"
@@ -320,7 +321,19 @@ void init_menu_state_on_net_stats_exit(void)
  */
 void frontstats_leave(struct GuiButton *gbtn)
 {
+    if (net_game_is_coop()) {
+        net_coop_stats_leave_requested = network_is_host();
+        return;
+    }
     init_menu_state_on_net_stats_exit();
+}
+
+void frontstats_leave_maintain(struct GuiButton *gbtn)
+{
+    if (net_game_is_coop() && !network_is_host())
+        gbtn->flags &= ~LbBtnF_Enabled;
+    else
+        gbtn->flags |= LbBtnF_Enabled;
 }
 
 void frontstats_set_timer(void)
@@ -331,6 +344,11 @@ void frontstats_set_timer(void)
 
 void frontstats_update(void)
 {
+    if (net_game_is_coop()) {
+        frontnet_coop_stats_update();
+        if (frontend_menu_state != FeSt_LEVEL_STATS)
+            return;
+    }
     scrolling_offset += local_state.delta_time;
     LbTextSetFont(frontend_font[1]);
     int h = LbTextLineHeight();

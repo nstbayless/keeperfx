@@ -35,6 +35,7 @@
 #include "config_campaigns.h"
 #include "config_settings.h"
 #include "front_network.h"
+#include "frontmenu_net.h"
 #include "front_simple.h"
 #include "frontend.h"
 #include "game_legacy.h"
@@ -111,6 +112,10 @@ struct ScreenPacket net_screen_packet[MAX_NET_USERS];
 static void update_net_ensigns_visibility(void)
 {
     SYNCDBG(18, "Starting");
+    if (net_lobby_coop_campaign()) {
+        update_ensigns_visibility();
+        return;
+    }
     set_all_ensigns_state(LvSt_Hidden);
     LevelNumber lvnum = first_multiplayer_level();
     int32_t i = 0;
@@ -148,6 +153,7 @@ static void set_packet_slap_frame(struct ScreenPacket *nspck, int32_t slap_frame
 
 void frontnetmap_unload(void)
 {
+    stop_description_speech();
     unload_map_and_window();
     free_font(&map_font);
     free_spritesheet(&map_flag);
@@ -356,8 +362,13 @@ void frontnetmap_input(void)
     struct LevelInformation* lvinfo;
 
     if (lbKeyOn[KC_ESCAPE]) {
-        fe_net_level_selected = LEVELNUMBER_ERROR;
         lbKeyOn[KC_ESCAPE] = 0;
+        if (fe_network_active && !network_is_host()) {
+            SYNCLOG("Left the session from level selection");
+            frontnet_return_to_session_menu(NULL);
+            return;
+        }
+        fe_net_level_selected = LEVELNUMBER_ERROR;
         SYNCLOG("Escaped from level selection");
         return;
     }
@@ -415,21 +426,28 @@ TbBool frontnetmap_load(void)
     }
     frontend_load_data_from_cd();
     game.selected_level_number = 0;
-    if (!load_map_and_window(0)) {
+    LevelNumber centre_lvnum = net_lobby_coop_campaign() ? get_continue_level_number() : SINGLEPLAYER_NOTSTARTED;
+    if (!load_map_and_window(max(centre_lvnum, 0))) {
         frontend_load_data_reset();
         return false;
     }
+    const char *flag_prefix = net_lobby_coop_campaign() ? "ldata/lndflag" : "ldata/netflag";
+    char flag_data_path[64];
+    char flag_index_path[64];
     switch (campaign.land_markers) {
     case LndMk_PINPOINTS:
-        map_flag = load_spritesheet("ldata/netflag_pin.dat", "ldata/netflag_pin.tab");
+        snprintf(flag_data_path, sizeof(flag_data_path), "%s_pin.dat", flag_prefix);
+        snprintf(flag_index_path, sizeof(flag_index_path), "%s_pin.tab", flag_prefix);
         break;
     default:
         ERRORLOG("Unsupported land markers type %d",(int)campaign.land_markers);
         // Fall Through
     case LndMk_ENSIGNS:
-        map_flag = load_spritesheet("ldata/netflag_ens.dat", "ldata/netflag_ens.tab");
+        snprintf(flag_data_path, sizeof(flag_data_path), "%s_ens.dat", flag_prefix);
+        snprintf(flag_index_path, sizeof(flag_index_path), "%s_ens.tab", flag_prefix);
         break;
     }
+    map_flag = load_spritesheet(flag_data_path, flag_index_path);
     
     map_flag = load_custom_ensigns_into_sheet(map_flag, frontend_palette); 
     pop_palette_remap();
@@ -448,7 +466,11 @@ TbBool frontnetmap_load(void)
         return false;
     }
     frontend_load_data_reset();
-    frontmap_zoom_skip_init(SINGLEPLAYER_NOTSTARTED);
+    frontmap_zoom_skip_init(centre_lvnum);
+    initialize_description_speech();
+    if (net_lobby_coop_campaign()) {
+        play_desc_speech_time = LbTimerClock() + 1000;
+    }
     fe_net_level_selected = SINGLEPLAYER_NOTSTARTED;
     net_level_highlighted = SINGLEPLAYER_NOTSTARTED;
     set_pointer_graphic_none();
@@ -463,6 +485,10 @@ TbBool frontnetmap_load(void)
             struct ScreenPacket* nspck = &net_screen_packet[i];
             if (is_connected_screen_packet(nspck)) {
                 net_number_of_players++;
+            }
+            if (i != my_player_number) {
+                screen_packet_set_action(nspck, NetAct_None);
+                nspck->action_par1 = SINGLEPLAYER_NOTSTARTED;
             }
         }
     } else {
@@ -535,6 +561,10 @@ static LevelNumber frontnetmap_update_players(void)
         remote_player = i != my_player_number;
         host_player = i == SERVER_ID;
         if (remote_player && !network_user_active(i)) {
+            if (net_lobby_coop_campaign() && !host_player) {
+                memset(nspck, 0, sizeof(*nspck));
+                continue;
+            }
             frontend_set_state(FeSt_NET_START);
             return SINGLEPLAYER_NOTSTARTED;
         }
@@ -606,6 +636,9 @@ TbBool frontnetmap_update(void)
         return false;
     }
     set_music_volume((map_sound_fade * settings.music_volume) / FULL_LOUDNESS);
+    if (net_lobby_coop_campaign()) {
+        frontmap_update_description_speech();
+    }
 
     LevelNumber selected_level_number = SINGLEPLAYER_NOTSTARTED;
     if ((map_info.fadeflags & MLInfoFlg_Zooming) != 0) {

@@ -6177,3 +6177,18 @@ msgstr "Files differ between %s and host"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "Single-Player Maps (co-op)..."
+
+#: guitext:1172
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "Campaigns (co-op)..."
+
+#: guitext:1173
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "Resume"
+
+#: guitext:1174
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "Play from start"

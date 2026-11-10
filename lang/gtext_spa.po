@@ -7877,3 +7877,21 @@ msgstr "Los archivos de %s y el anfitrión difieren"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "Mapas de un jugador (cooperativo)..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "Campañas (cooperativo)..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "Reanudar"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "Jugar desde el principio"

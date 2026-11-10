@@ -134,7 +134,7 @@ uint32_t encode_continue_level(LevelNumber lvnum)
     return (uint32_t)lvnum + 1;
 }
 
-static LevelNumber stored_continue_level(const struct IntralevelData *ilvl)
+LevelNumber stored_continue_level(const struct IntralevelData *ilvl)
 {
     if (ilvl->continue_level == 0)
         return LEVELNUMBER_ERROR;

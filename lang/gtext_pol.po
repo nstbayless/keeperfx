@@ -7734,3 +7734,21 @@ msgstr "Pliki różnią się między %s a hostem"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "Mapy jednoosobowe (kooperacja)..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "Kampanie (kooperacja)..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "Wznów"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "Graj od początku"

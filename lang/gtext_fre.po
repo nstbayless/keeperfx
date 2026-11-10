@@ -7871,3 +7871,21 @@ msgstr "Les fichiers diffèrent entre %s et l'hôte"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "Cartes solo (coop)..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "Campagnes (coop)..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "Reprendre"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "Jouer depuis le début"

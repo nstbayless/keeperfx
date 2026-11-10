@@ -7645,3 +7645,21 @@ msgstr "Filerna skiljer sig mellan %s och värden"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "Enspelarbanor (samarbete)..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "Kampanjer (samarbete)..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "Återuppta"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "Spela från början"

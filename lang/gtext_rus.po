@@ -6983,3 +6983,21 @@ msgstr "Файлы у %s и хоста различаются"
 msgctxt "Network game interface"
 msgid "Single-Player Maps (co-op)..."
 msgstr "Одиночные карты (кооператив)..."
+
+#: guitext:1172
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Campaigns (co-op)..."
+msgstr "Кампании (кооператив)..."
+
+#: guitext:1173
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Resume"
+msgstr "Продолжить"
+
+#: guitext:1174
+#, fuzzy
+msgctxt "Network game interface"
+msgid "Play from start"
+msgstr "Играть с начала"

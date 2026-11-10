@@ -77,6 +77,7 @@ enum NetAction {
     NetAct_Limping            = 0x10,
     NetAct_HostStartLevel     = 0x18,
     NetAct_OpenLandView       = 0x20,
+    NetAct_LeaveStats         = 0x28,
     NetAct_SetPlayerSetting   = 0x30,
     NetAct_SetComputerPlayers = 0x38,
 };
@@ -91,6 +92,8 @@ struct ScreenPacket {
   int8_t player_settings[NetPlayerSetting_Count][MAX_NET_USERS];
   int8_t max_players;
   int16_t level; // nonzero: host is forcing a particulsr level from the pack.
+  int8_t campaign_progress;
+  uint8_t campaign_resume;
 };
 
 static inline unsigned char screen_packet_action(const struct ScreenPacket *nspck) {
@@ -146,6 +149,9 @@ void make_palette_remap(unsigned char *remap, const unsigned char *source_palett
 TbBool initialize_description_speech(void);
 TbBool play_current_description_speech(short play_good);
 TbBool play_description_speech(LevelNumber lvnum, short play_good);
+TbBool stop_description_speech(void);
+void frontmap_update_description_speech(void);
+void update_ensigns_visibility(void);
 void check_mouse_scroll(void);
 void update_velocity(void);
 

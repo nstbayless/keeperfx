@@ -24,6 +24,7 @@
 #include "bflib_basics.h"
 #include "bflib_datetm.h"
 #include "bflib_mouse.h"
+#include "bflib_dernc.h"
 #include "net_lobby.h"
 #include "bflib_sndlib.h"
 #include "bflib_sound.h"
@@ -103,6 +104,7 @@ const int32_t hand_limp_yoffset[] = { -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, 
 long fe_net_level_selected;
 static struct NetLandLocalState net_map_local;
 static struct NetLandRemoteSlap net_map_remote_slap[MAX_NET_USERS];
+static unsigned char net_map_hand_remap[PALETTE_COLORS];
 struct ScreenPacket net_screen_packet[MAX_NET_USERS];
 /******************************************************************************/
 #ifdef __cplusplus
@@ -149,6 +151,16 @@ static void set_packet_slap_frame(struct ScreenPacket *nspck, int32_t slap_frame
 {
     screen_packet_set_action(nspck, NetAct_Slapping);
     nspck->action_par1 = slap_frame;
+}
+
+static void init_net_map_hand_remap(void)
+{
+    unsigned char start_palette[PALETTE_SIZE];
+    const char *fname = prepare_file_fmtpath(FGrp_LandView, "%s.pal", campaign.land_view_start);
+    if (LbFileLoadAt(fname, start_palette) != PALETTE_SIZE) {
+        memcpy(start_palette, frontend_palette, PALETTE_SIZE);
+    }
+    make_palette_remap(net_map_hand_remap, start_palette, frontend_palette);
 }
 
 void frontnetmap_unload(void)
@@ -316,16 +328,16 @@ static void draw_netmap_players_hands(void)
         }
         get_hand_packet(i, &nspck, slap_frame, now);
         plyr_nam = network_user_name(i);
-        colr = net_player_colours[0];
+        colr = net_map_hand_remap[net_player_colours[0]];
         if (net_player_colour[i] == NET_PLAYER_COLOUR_RANDOM) {
             colr = LbPaletteFindColour(frontend_palette, RANDOM_PLAYER_GREY, RANDOM_PLAYER_GREY, RANDOM_PLAYER_GREY);
         } else if (net_player_colour[i] >= 0) {
-            colr = net_player_colours[net_player_colour[i]];
+            colr = net_map_hand_remap[net_player_colours[net_player_colour[i]]];
         }
         spr = get_hand_sprite_for_packet(&nspck, anim_frame, &x, &y);
         x -= (long)map_info.screen_shift_x;
         y -= (long)map_info.screen_shift_y;
-        LbSpriteDrawResized(scale_value_landview(x), scale_value_landview(y), units_per_pixel_landview, spr);
+        LbSpriteDrawResizedRemap(scale_value_landview(x), scale_value_landview(y), units_per_pixel_landview, spr, net_map_hand_remap);
         w = LbTextStringWidth(plyr_nam);
         if (w > 0) {
             RendererSetDrawFlags(0);
@@ -333,7 +345,10 @@ static void draw_netmap_players_hands(void)
             y += 32;
             x += 32;
             LbDrawBox(scale_value_landview(x-4), scale_value_landview(y), scale_value_landview(w+8), scale_value_landview(h), colr);
+            lbSpriteReMapPtr = net_map_hand_remap;
+            RendererSetDrawFlags(Lb_TEXT_REMAP);
             LbTextDrawResized(scale_value_landview(x), scale_value_landview(y), units_per_pixel_landview, plyr_nam);
+            RendererSetDrawFlags(0);
         }
     }
 }
@@ -431,6 +446,7 @@ TbBool frontnetmap_load(void)
         frontend_load_data_reset();
         return false;
     }
+    init_net_map_hand_remap();
     const char *flag_prefix = net_lobby_coop_campaign() ? "ldata/lndflag" : "ldata/netflag";
     char flag_data_path[64];
     char flag_index_path[64];

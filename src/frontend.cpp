@@ -3173,6 +3173,19 @@ void frontend_input(void)
     case FeSt_NET_SESSION:
         get_gui_inputs(0);
         break;
+    case FeSt_LEVEL_STATS:
+        get_gui_inputs(0);
+        if (!net_game_is_coop()) {
+            input_consumed = frontscreen_end_input(false);
+            break;
+        }
+        if (lbKeyOn[KC_ESCAPE] || right_button_clicked) {
+            lbKeyOn[KC_ESCAPE] = 0;
+            right_button_clicked = 0;
+            frontnet_coop_stats_leave();
+            input_consumed = true;
+        }
+        break;
     case FeSt_NET_START:
         get_gui_inputs(0);
         frontnet_start_input();

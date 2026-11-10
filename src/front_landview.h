@@ -77,7 +77,7 @@ enum NetAction {
     NetAct_Limping            = 0x10,
     NetAct_HostStartLevel     = 0x18,
     NetAct_OpenLandView       = 0x20,
-    NetAct_LeaveStats         = 0x28,
+    NetAct_InStats            = 0x28,
     NetAct_SetPlayerSetting   = 0x30,
     NetAct_SetComputerPlayers = 0x38,
 };
@@ -92,7 +92,7 @@ struct ScreenPacket {
   int8_t player_settings[NetPlayerSetting_Count][MAX_NET_USERS];
   int8_t max_players;
   int16_t level; // nonzero: host is forcing a particulsr level from the pack.
-  int8_t campaign_progress;
+  int16_t campaign_progress;
   uint8_t campaign_resume;
 };
 

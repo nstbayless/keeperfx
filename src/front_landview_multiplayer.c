@@ -307,7 +307,7 @@ static void draw_netmap_players_hands(void)
     for (i=0; i < MAX_NET_USERS; i++) {
         int32_t slap_frame;
 
-        if (!is_connected_screen_packet(&net_screen_packet[i])) {
+        if (!is_connected_screen_packet(&net_screen_packet[i]) || screen_packet_action(&net_screen_packet[i]) == NetAct_InStats) {
             continue;
         }
         slap_frame = 0;
@@ -486,7 +486,7 @@ TbBool frontnetmap_load(void)
             if (is_connected_screen_packet(nspck)) {
                 net_number_of_players++;
             }
-            if (i != my_player_number) {
+            if (i != my_player_number && screen_packet_action(nspck) != NetAct_InStats) {
                 screen_packet_set_action(nspck, NetAct_None);
                 nspck->action_par1 = SINGLEPLAYER_NOTSTARTED;
             }
@@ -577,6 +577,13 @@ static LevelNumber frontnetmap_update_players(void)
             return SINGLEPLAYER_NOTSTARTED;
         }
         action = screen_packet_action(nspck);
+        if (action == NetAct_InStats) {
+            if (can_start_level) {
+                selected_level_number = SINGLEPLAYER_NOTSTARTED;
+                leading_votes = -1;
+            }
+            continue;
+        }
         if (host_player && (action == NetAct_HostStartLevel) && (nspck->action_par1 > SINGLEPLAYER_NOTSTARTED)) {
             return nspck->action_par1;
         }

@@ -322,18 +322,10 @@ void init_menu_state_on_net_stats_exit(void)
 void frontstats_leave(struct GuiButton *gbtn)
 {
     if (net_game_is_coop()) {
-        net_coop_stats_leave_requested = network_is_host();
+        frontnet_coop_stats_leave();
         return;
     }
     init_menu_state_on_net_stats_exit();
-}
-
-void frontstats_leave_maintain(struct GuiButton *gbtn)
-{
-    if (net_game_is_coop() && !network_is_host())
-        gbtn->flags &= ~LbBtnF_Enabled;
-    else
-        gbtn->flags |= LbBtnF_Enabled;
 }
 
 void frontstats_set_timer(void)

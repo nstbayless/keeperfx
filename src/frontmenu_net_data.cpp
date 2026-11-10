@@ -1199,7 +1199,7 @@ static void select_coop_campaign(int32_t index)
         return;
     }
     const struct GameCampaign *campgn = &campaigns_list.items[index];
-    frontnet_select_coop_campaign(campgn->fname, (int8_t)min((int)campgn->progress_percent, 100));
+    frontnet_select_coop_campaign(campgn->fname, campgn->progress_percent);
 }
 
 static struct GuiButton lobby_mappack_list_panel(struct GuiButton *gbtn)

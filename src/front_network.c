@@ -102,13 +102,13 @@ int8_t net_player_team[MAX_NET_USERS];
 int32_t net_lobby_max_players;
 PlayerBitFlags net_lobby_empty_seats;
 LevelNumber net_level;
-int8_t net_campaign_progress = -1;
+int16_t net_campaign_progress = -1;
 TbBool net_campaign_resume;
-TbBool net_coop_stats_leave_requested;
 static TbBool attempting_to_join_cancelled = false;
 static int32_t previous_active_players = 0;
 static struct ScreenPacket last_sent_screen_packet;
 static TbClockMSec last_sent_screen_packet_time;
+static TbBool lobby_user_in_stats[MAX_NET_USERS];
 /******************************************************************************/
 #ifdef __cplusplus
 }
@@ -395,7 +395,7 @@ static PlayerNumber coop_player(void)
     return 0;
 }
 
-void frontnet_select_coop_campaign(const char *fname, int8_t progress)
+void frontnet_select_coop_campaign(const char *fname, int16_t progress)
 {
     net_level = 0;
     net_campaign_progress = progress;
@@ -411,43 +411,32 @@ void frontnet_select_coop_campaign(const char *fname, int8_t progress)
 struct NetCampaignProgress {
     struct IntralevelData ilvl;
     uint32_t custom_len;
+    uint8_t custom_ild[];
 };
 
 static TbBool sync_coop_campaign_progress(void)
 {
-    struct NetCampaignProgress progress;
-    memset(&progress, 0, sizeof(progress));
-    intralvl.continue_level = encode_continue_level(get_continue_level_number());
-    memcpy(&progress.ilvl, &intralvl, sizeof(progress.ilvl));
-    progress.custom_len = custom_intralevel_data_len;
-    if (!LbNetwork_Resync(&progress, sizeof(progress))) {
+    size_t size = sizeof(struct NetCampaignProgress) + CUSTOM_INTRALEVEL_DATA_MAX_SIZE;
+    struct NetCampaignProgress *progress = (struct NetCampaignProgress *)calloc(1, size);
+    if (progress == NULL) {
         return false;
     }
-    if (progress.custom_len > CUSTOM_INTRALEVEL_DATA_MAX_SIZE) {
-        return false;
-    }
-    char *custom = NULL;
-    if (progress.custom_len > 0) {
-        custom = (char *)calloc(progress.custom_len, 1);
-        if (custom == NULL) {
-            return false;
-        }
-        if (network_is_host()) {
-            memcpy(custom, custom_intralevel_data, progress.custom_len);
-        }
-        if (!LbNetwork_Resync(custom, progress.custom_len)) {
-            free(custom);
-            return false;
+    if (network_is_host()) {
+        intralvl.continue_level = encode_continue_level(get_continue_level_number());
+        memcpy(&progress->ilvl, &intralvl, sizeof(progress->ilvl));
+        progress->custom_len = min(custom_intralevel_data_len, CUSTOM_INTRALEVEL_DATA_MAX_SIZE);
+        if (progress->custom_len > 0) {
+            memcpy(progress->custom_ild, custom_intralevel_data, progress->custom_len);
         }
     }
-    TbBool result = true;
-    if (!network_is_host()) {
-        memcpy(&intralvl, &progress.ilvl, sizeof(intralvl));
+    TbBool result = LbNetwork_Resync(progress, size) && progress->custom_len <= CUSTOM_INTRALEVEL_DATA_MAX_SIZE;
+    if (result && !network_is_host()) {
+        memcpy(&intralvl, &progress->ilvl, sizeof(intralvl));
         set_continue_level_number(stored_continue_level(&intralvl));
-        result = set_custom_intralevel_data(custom, progress.custom_len);
+        result = set_custom_intralevel_data(progress->custom_ild, progress->custom_len);
         update_extra_levels_visibility();
     }
-    free(custom);
+    free(progress);
     return result;
 }
 
@@ -859,6 +848,7 @@ static TbBool check_frontend_version_mismatch(void)
 static void process_frontend_packet(NetUserId user)
 {
   struct ScreenPacket* nspckt = &net_screen_packet[user];
+  lobby_user_in_stats[user] = screen_packet_action(nspckt) == NetAct_InStats;
   if ((frontend_alliances == -1) && (nspckt->frontend_alliances != -1)) {
     frontend_alliances = nspckt->frontend_alliances;
   }
@@ -1144,6 +1134,7 @@ static void reset_lobby_selection(void)
     net_level = 0;
     net_campaign_progress = -1;
     net_campaign_resume = false;
+    memset(lobby_user_in_stats, 0, sizeof(lobby_user_in_stats));
 }
 
 void frontnet_session_setup(void)
@@ -1164,9 +1155,24 @@ void frontnet_session_setup(void)
     }
 }
 
-static void leave_coop_stats(void)
+TbBool net_user_in_stats(NetUserId user)
 {
-    net_coop_stats_leave_requested = false;
+    const struct ScreenPacket *nspck = &net_screen_packet[user];
+    return network_user_active(user) && (lobby_user_in_stats[user] || (is_connected_screen_packet(nspck) && screen_packet_action(nspck) == NetAct_InStats));
+}
+
+TbBool net_any_user_in_stats(void)
+{
+    for (NetUserId user = 0; user < MAX_NET_USERS; user++) {
+        if (user != my_player_number && net_user_in_stats(user)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void frontnet_coop_stats_leave(void)
+{
     if (campaign.fgroup == FGrp_Campgn) {
         fe_network_active = 1;
         frontend_set_state(FeSt_NETLAND_VIEW);
@@ -1177,24 +1183,18 @@ static void leave_coop_stats(void)
 
 static void process_coop_stats_packet(NetUserId user)
 {
-    if (user == SERVER_ID && screen_packet_action(&net_screen_packet[user]) == NetAct_LeaveStats) {
-        leave_coop_stats();
+    if (user == SERVER_ID && net_screen_packet[user].action_par1 == LEVELNUMBER_ERROR) {
+        frontend_set_state(FeSt_NET_START);
     }
 }
 
 void frontnet_coop_stats_update(void)
 {
     struct ScreenPacket *nspckt = &net_screen_packet[my_player_number];
-    nspckt->networkstatus_flags = NetStat_PlayerConnected;
-    if (net_coop_stats_leave_requested) {
-        screen_packet_set_action(nspckt, NetAct_LeaveStats);
-    }
-    TbClockMSec now = LbTimerClock();
-    TbBool send_frame = net_coop_stats_leave_requested || (now - last_sent_screen_packet_time >= LOBBY_SCREEN_PACKET_RESEND_INTERVAL_MS);
-    if (send_frame) {
-        last_sent_screen_packet_time = now;
-    }
-    if (LbNetwork_ExchangeLobby(nspckt, &net_screen_packet, sizeof(struct ScreenPacket), send_frame, process_coop_stats_packet)) {
+    nspckt->networkstatus_flags |= NetStat_PlayerConnected;
+    screen_packet_set_action(nspckt, NetAct_InStats);
+    nspckt->action_par1 = SINGLEPLAYER_NOTSTARTED;
+    if (LbNetwork_ExchangeLobby(nspckt, &net_screen_packet, sizeof(struct ScreenPacket), true, process_coop_stats_packet)) {
         ERRORLOG("LbNetwork_Exchange failed");
     }
     if (frontend_menu_state != FeSt_LEVEL_STATS) {
@@ -1207,9 +1207,6 @@ void frontnet_coop_stats_update(void)
         }
         return;
     }
-    if (network_is_host() && net_coop_stats_leave_requested) {
-        leave_coop_stats();
-    }
 }
 
 static void refresh_coop_campaign_progress(void)
@@ -1220,7 +1217,7 @@ static void refresh_coop_campaign_progress(void)
     SaveManager_UpdateCampaignPercents(&campaigns_list);
     const struct GameCampaign *campgn = find_campaign_in_list(campaign.fname, &campaigns_list);
     if (campgn != NULL) {
-        net_campaign_progress = (int8_t)min((int)campgn->progress_percent, 100);
+        net_campaign_progress = campgn->progress_percent;
         net_campaign_resume = net_campaign_progress >= 0;
     }
 }
